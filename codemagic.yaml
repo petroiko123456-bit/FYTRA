@@ -4,7 +4,7 @@ workflows:
     max_build_duration: 60
     environment:
       node: 22
-      java: 17
+      java: 21
     triggering:
       events:
         - push
