@@ -32,7 +32,7 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
     }
 
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    fun requestStepPermissions(call: PluginCall) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
             == PackageManager.PERMISSION_GRANTED) {
             val ret = JSObject(); ret.put("granted", true); call.resolve(ret)
