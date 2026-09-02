@@ -48,17 +48,27 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
         val ret = JSObject(); ret.put("granted", granted); call.resolve(ret)
     }
 
+    // ΝΕΟ, ΔΙΑΓΝΩΣΤΙΚΟ: επιστρέφει ρητά αν η καταχώρηση κάθε αισθητήρα πέτυχε πραγματικά (Boolean από το
+    // ίδιο το Android), αντί να υποθέτουμε ότι πέτυχε απλά επειδή δεν πέταξε σφάλμα. Επίσης επιστρέφει το
+    // όνομα/vendor του αισθητήρα καταμέτρησης βημάτων, για να δούμε τι chip/υλοποίηση αναφέρει η συσκευή.
     @PluginMethod
     fun start(call: PluginCall) {
         if (stepCounterSensor == null) {
             call.reject("TYPE_STEP_COUNTER not available on this device")
             return
         }
-        sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        val counterRegistered = sensorManager.registerListener(this, stepCounterSensor, SensorManager.SENSOR_DELAY_FASTEST)
+        var detectorRegistered = false
         stepDetectorSensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            detectorRegistered = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
         }
-        call.resolve()
+        val ret = JSObject()
+        ret.put("counterRegistered", counterRegistered)
+        ret.put("detectorAvailable", stepDetectorSensor != null)
+        ret.put("detectorRegistered", detectorRegistered)
+        ret.put("counterSensorName", stepCounterSensor?.name ?: "null")
+        ret.put("counterSensorVendor", stepCounterSensor?.vendor ?: "null")
+        call.resolve(ret)
     }
 
     @PluginMethod
