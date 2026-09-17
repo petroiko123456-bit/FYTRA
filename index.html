@@ -3280,6 +3280,8 @@
       </svg>
       <div class="ring-center">
         <div class="ring-num" id="stepCount">0</div>
+        <!-- ΝΕΟ: το χρονόμετρο μπήκε ΑΚΡΙΒΩΣ κάτω από τον αριθμό βημάτων, όπως ζητήθηκε -->
+        <div id="stepsSessionTimer" style="text-align:center; font-family:monospace; font-size:15px; color:#FFD166; margin:2px 0;">⏱ 00:00</div>
         <div class="ring-lbl">στόχος 6.000 βήματα</div>
       </div>
     </div>
@@ -3389,9 +3391,6 @@
     <div class="day-night-toggle" id="dayNightToggle">day</div>
     </div>
     <div class="status" id="stepStatus">Η καταμέτρηση βημάτων είναι πάντα ενεργή αυτόματα</div>
-    <!-- ΠΡΟΣΩΡΙΝΟ, ΓΙΑ ΔΟΚΙΜΕΣ v2: ορατό χρονόμετρο από τη στιγμή που ξεκίνησε η καταμέτρηση, ώστε να
-         μπορείς να μου λες "στο 0:45 περπάτησα, στο 1:20 κούνησα το χέρι" για ακριβή ανάλυση logs. -->
-    <div id="stepsSessionTimer" style="text-align:center; font-family:monospace; font-size:22px; color:#FFD166; margin:6px 0 10px;">⏱ 00:00</div>
     <div class="note" id="sensorDebug" style="margin-bottom:12px;"></div>
     <div class="btn-row" style="margin-top:10px;">
       <button class="ghost" id="testStepBtn"><span class="e-txt">+1 βήμα (δοκιμή)</span></button>
@@ -5316,12 +5315,15 @@
   async function sget(key) {
     try {
       if (hasClaudeStorage) { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; }
-      const v = localStorage.getItem(key); return v ? JSON.parse(v) : null;
+      const v = localStorage.getItem(key);
+      if (key === 'befit:stepsHistory') console.log('[FYTRA-DIAG] sget(befit:stepsHistory) ΔΙΑΒΑΣΕ: ' + v);
+      return v ? JSON.parse(v) : null;
     } catch(e) { return null; }
   }
   async function sset(key, val) {
     try {
       if (hasClaudeStorage) { await window.storage.set(key, JSON.stringify(val)); return; }
+      if (key === 'befit:stepsHistory') console.log('[FYTRA-DIAG] sset(befit:stepsHistory) ΓΡΑΦΕΙ: ' + JSON.stringify(val));
       localStorage.setItem(key, JSON.stringify(val));
     } catch(e) {}
   }
@@ -6523,7 +6525,11 @@
       resetSessionState();
       if (!detectPlugin()) { sensorState = SensorState.SENSOR_UNAVAILABLE; diagLastError = 'plugin not found (detectPlugin false)'; notify(); return false; }
       try {
-        const perm = await nativePlugin.requestStepPermissions(); // ΣΗΜΑΝΤΙΚΟ: ονομάστηκε ρητά "requestStepPermissions" (όχι "requestPermissions") ώστε να ΜΗΝ συγκρούεται με την ενσωματωμένη μέθοδο του Capacitor Plugin — βλ. FytraStepCounterPlugin.kt
+        // ΝΕΟ: ΜΙΑ ενιαία κλήση για ΚΑΙ τα δύο permissions (βήματα + ειδοποιήσεις) — το Android τα δείχνει
+        // σαν μία ροή αντί για δύο ξεχωριστά, διαδοχικά dialogs. Βλ. requestAllStepPermissions() στο
+        // FytraStepCounterPlugin.kt. Το "granted" αντιστοιχεί ΜΟΝΟ στο permission βημάτων — άρνηση των
+        // ειδοποιήσεων ΔΕΝ εμποδίζει ποτέ τη μέτρηση.
+        const perm = await nativePlugin.requestAllStepPermissions();
         if (perm && perm.granted === false) { sensorState = SensorState.PERMISSION_DENIED; notify(); return false; }
       } catch (e) { sensorState = SensorState.SENSOR_UNAVAILABLE; diagLastError = 'requestStepPermissions: ' + (e && e.message ? e.message : String(e)); notify(); return false; }
       try {
@@ -6542,8 +6548,31 @@
     function getCurrentNativeSteps() { return confirmedSessionSteps; }
     function onNativeStepUpdate(cb) { updateListeners.push(cb); }
     function getStepSourceStatus() { return sensorState; }
+    // ΝΕΟ (Σενάριο Β — καταγραφή βημάτων όσο η εφαρμογή είναι ΕΝΤΕΛΩΣ κλειστή): καλεί το ξεχωριστό,
+    // απομονωμένο native checkClosedAppSteps() (βλ. FytraStepCounterPlugin.kt). ΔΕΝ αγγίζει καθόλου
+    // confirmedSessionSteps/provisionalSessionSteps/nativeBaseline ή οποιαδήποτε άλλη μεταβλητή του
+    // God Mode/v1/v2 — απλά προωθεί το αποτέλεσμα του native call προς τα έξω. Ασφαλές να επιστρέψει
+    // {available:false, delta:0} αν κάτι πάει στραβά (π.χ. web preview, plugin δεν βρέθηκε).
+    async function checkClosedAppSteps() {
+      try {
+        if (!detectPlugin()) return { available: false, delta: 0 };
+        const res = await nativePlugin.checkClosedAppSteps();
+        return res || { available: false, delta: 0 };
+      } catch (e) {
+        return { available: false, delta: 0 };
+      }
+    }
+    // ΝΕΟ: ζητάει ρητά το POST_NOTIFICATIONS permission (Android 13+) ώστε να φαίνεται η μόνιμη ειδοποίηση
+    // του Foreground Service. Fire-and-forget — δεν μπλοκάρει ΠΟΤΕ τη μέτρηση βημάτων ό,τι κι αν απαντήσει
+    // ο χρήστης. Καμία σχέση με requestStepPermissions()/God Mode.
+    async function requestNotificationPermission() {
+      try {
+        if (!detectPlugin()) return;
+        await nativePlugin.requestNotificationPermission();
+      } catch (e) { /* μη κρίσιμο */ }
+    }
 
-    return { startStepTracking, stopStepTracking, getCurrentNativeSteps, onNativeStepUpdate, getStepSourceStatus, getSnapshot, SensorState, WalkingState };
+    return { startStepTracking, stopStepTracking, getCurrentNativeSteps, onNativeStepUpdate, getStepSourceStatus, getSnapshot, checkClosedAppSteps, requestNotificationPermission, SensorState, WalkingState };
   })();
 
   // Fake generator: ΜΟΝΟ development-only mechanism (ρητό URL param ή localStorage flag), ΠΟΤΕ αυτόματο
@@ -7228,6 +7257,9 @@
   dayNightToggle.addEventListener('click', () => { isNight = !isNight; applyDayNight(); });
   applyDayNight();
   const sensorDebug = document.getElementById('sensorDebug');
+  // ΠΡΟΣΩΡΙΝΟ ΔΙΑΓΝΩΣΤΙΚΟ: κρατάει την τιμή του dailyBaseline τη στιγμή του ανοίγματος, ώστε να
+  // παραμένει ορατή στην οθόνη ΜΟΝΙΜΑ (όχι μόνο για 1-2 δευτ. μέχρι να έρθει το πρώτο live update).
+  let diagInitSnapshot = '';
 
   // ---------- Ημερήσιο ιστορικό βημάτων (συνδεδεμένο με την τρέχουσα ημερομηνία) ----------
   let stepsHistory = {}; // { 'YYYY-MM-DD': {steps, km, kcal} }
@@ -7246,12 +7278,21 @@
   const dailyLogChev = document.getElementById('dailyLogChev');
   const dailyLogDropdown = document.getElementById('dailyLogDropdown');
 
-  function saveTodayStepsSnapshot() {
+  // ΔΙΟΡΘΩΣΗ / ΒΕΛΤΙΩΣΗ: η τοπική αποθήκευση διαχωρίστηκε σε ξεχωριστή συνάρτηση (saveTodayStepsLocalOnly)
+  // ώστε να καλείται ΑΜΕΣΩΣ, σε ΚΑΘΕ βήμα, χωρίς να περιμένει το throttle της οθόνης (~400ms) — έτσι δεν
+  // υπάρχει ΠΛΕΟΝ κανένα χρονικό παράθυρο όπου ένα βήμα θα μπορούσε να χαθεί αν κλείσει η εφαρμογή αμέσως
+  // μετά. Το cloud sync (δικτυακό, πιο "ακριβό") παραμένει εδώ, καλείται από το (throttled) renderSteps()
+  // — δεν χρειάζεται να στέλνεται στο cloud σε κάθε μεμονωμένο βήμα, αφού το τοπικό είναι ήδη ασφαλές.
+  function saveTodayStepsLocalOnly() {
     const total = dailyBaseline + steps;
     const km = (total*STEP_LENGTH_M)/1000;
     const kcal = Math.round(total*KCAL_PER_STEP);
     stepsHistory[stepsDayKey] = { steps: total, km: Math.round(km*100)/100, kcal };
+    console.log('[FYTRA-DIAG] saveTodayStepsLocalOnly(): dailyBaseline=' + dailyBaseline + ' steps=' + steps + ' total=' + total + ' stepsDayKey=' + stepsDayKey);
     sset('befit:stepsHistory', stepsHistory);
+  }
+  function saveTodayStepsSnapshot() {
+    saveTodayStepsLocalOnly();
     syncLiveToCloud();
     syncStepsHistoryToCloud();
   }
@@ -7452,6 +7493,29 @@
     }
   }
   setInterval(checkDayRollover, 60000);
+
+  // ΝΕΟ: εξήχθη σε ξεχωριστή, awaitable συνάρτηση (ήταν πριν inline μέσα στο (async function init())() στο
+  // τέλος του αρχείου) ΩΣΤΕ να μπορεί να κληθεί ΚΑΙ, ρητά, από το enterApp() ΠΡΙΝ ξεκινήσει ο αισθητήρας
+  // βημάτων. ΔΕΝ αλλάζει καθόλου η λογική/τα δεδομένα — ίδιος ακριβώς κώδικας, απλώς τυλιγμένος σε
+  // συνάρτηση ώστε να διορθωθεί ένα πιθανό race condition: αν ο native αισθητήρας προλάβαινε να στείλει
+  // την πρώτη ενημέρωση βημάτων ΠΡΙΝ φορτωθεί το dailyBaseline από το τοπικό αποθηκευμένο ιστορικό, το
+  // saveTodayStepsSnapshot() θα αποθήκευε λανθασμένα ΜΟΝΟ τα νέα (session) βήματα, χάνοντας το ήδη
+  // καταγεγραμμένο σύνολο της ημέρας.
+  async function restoreStepsPersistedState() {
+    const sh = await sget('befit:stepsHistory');
+    if (sh) {
+      stepsHistory = sh;
+      const existingKeys = Object.keys(stepsHistory).sort();
+      if (existingKeys.length) {
+        const lastKey = existingKeys[existingKeys.length - 1];
+        if (lastKey < stepsDayKey) { fillGapDays(lastKey, stepsDayKey); sset('befit:stepsHistory', stepsHistory); }
+      }
+      if (stepsHistory[stepsDayKey]) dailyBaseline = stepsHistory[stepsDayKey].steps;
+      renderDailyLog();
+    }
+    const gcd = await sget('befit:goalCelebratedDate');
+    if (gcd) goalCelebratedDate = gcd;
+  }
 
   // ================================================================
   // WellB XP Engine™ v1.0 — δετερμινιστική, offline, χωρίς AI.
@@ -8807,6 +8871,26 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
       }, NATIVE_RENDER_MIN_INTERVAL_MS - elapsed);
     }
   }
+  // ΔΙΟΡΘΩΣΗ ΚΡΙΣΙΜΟΥ BUG: αν το ΤΕΛΕΥΤΑΙΟ βήμα μιας session πέσει μέσα στο μικρό παράθυρο του throttle
+  // (μέχρι 400ms) πιο πάνω, η ενημέρωση/αποθήκευσή του αναβάλλεται μέσω setTimeout. Αν ο χρήστης κλείσει
+  // την εφαρμογή ΑΚΡΙΒΩΣ τότε (μέσα σε αυτά τα <400ms), το setTimeout δεν προλαβαίνει ΠΟΤΕ να εκτελεστεί
+  // πριν καταστραφεί το JS περιβάλλον — και το βήμα χάνεται αθόρυβα, χωρίς κανένα άλλο σφάλμα. Εδώ
+  // "αδειάζουμε" ΑΜΕΣΩΣ οποιαδήποτε τέτοια εκκρεμότητα τη στιγμή που το ίδιο το Android ειδοποιεί (μέσω
+  // Page Visibility API — ήδη χρησιμοποιείται αλλού στο αρχείο, π.χ. για τις υπενθυμίσεις νερού) ότι η
+  // εφαρμογή πάει στο παρασκήνιο/κλείνει, ΠΡΙΝ προλάβει να χαθεί ο χρόνος. Καμία επίδραση στο God Mode/
+  // v1/v2 filter — μόνο διασφαλίζει ότι ό,τι έχει ΗΔΗ μετρηθεί/πιστωθεί δεν χάνεται στην αποθήκευση.
+  function flushPendingStepsRenderIfAny() {
+    if (nativeRenderThrottleTimer) {
+      clearTimeout(nativeRenderThrottleTimer);
+      nativeRenderThrottleTimer = null;
+      nativeRenderLastTs = Date.now();
+      renderSteps();
+    }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingStepsRenderIfAny();
+  });
+  window.addEventListener('pagehide', flushPendingStepsRenderIfAny);
   // ΝΕΟ: ακριβής καταμέτρηση μέσω native αισθητήρα (TYPE_STEP_COUNTER/CMPedometer) μέσω FytraStepEngine,
   // αντί για το παλιό heuristic κούνημα με DeviceMotion. Χρησιμοποιείται ΜΟΝΟ μέσα στη native android/iOS εφαρμογή.
   function startNativeStepListening() {
@@ -8842,6 +8926,11 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
         // αισθητήρας τρέχει αδιάλειπτα, ό,τι κι αν συμβαίνει σε Βήματα/Τρέξιμο/Together.
         lastRawNativeSteps = snap.displaySessionSteps;
         steps = Math.max(0, lastRawNativeSteps - stepsResetOffset);
+        // ΔΙΟΡΘΩΣΗ ΚΡΙΣΙΜΟΥ BUG: η τοπική αποθήκευση γίνεται ΕΔΩ, ΑΜΕΣΩΣ, σε ΚΑΘΕ ενημέρωση βημάτων —
+        // ΠΡΙΝ από το throttledNativeRenderSteps() παρακάτω (που παραμένει throttled ΜΟΝΟ για την οπτική
+        // ανανέωση της οθόνης). Έτσι ένα βήμα δεν μπορεί ΠΟΤΕ πια να χαθεί επειδή ο χρήστης έκλεισε την
+        // εφαρμογή μέσα στο μικρό (<400ms) παράθυρο του throttle. Καμία επίδραση στο God Mode/v1/v2.
+        saveTodayStepsLocalOnly();
         const baseLabel = stateLabels[snap.sensorState] || 'Native αισθητήρας ενεργός — δεδομένα ρέουν κανονικά.';
         // ΠΡΟΣΩΡΙΝΟ ΔΙΑΓΝΩΣΤΙΚΟ: δείχνει πόσες φορές έφτασε κάθε τύπος event ΚΑΙ αν η ίδια η καταχώρηση
         // (registerListener) του αισθητήρα πέτυχε πραγματικά στο Android, ώστε να δούμε ρητά πού κολλάει.
@@ -8850,7 +8939,10 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
           ? ' [reg counter: ' + si.counterRegistered + ' · reg detector: ' + si.detectorRegistered + ' · sensor: ' + si.counterSensorName + ' (' + si.counterSensorVendor + ')]'
           : ' [reg: n/a]';
         const errStr = snap.diagLastError ? ' [ERROR: ' + snap.diagLastError + ']' : '';
-        sensorDebug.textContent = '[TEST-D-OK] ' + baseLabel + ' [detector: ' + snap.diagDetectorEventCount + ' · counter: ' + snap.diagConfirmedEventCount + ']' + startInfoStr + errStr;
+        // ΠΡΟΣΩΡΙΝΟ ΔΙΑΓΝΩΣΤΙΚΟ: dailyBaseline/steps/total ορατά ΑΠΕΥΘΕΙΑΣ στην οθόνη (όχι σε logs) —
+        // ώστε να φαίνονται σε κάθε screenshot χωρίς να εξαρτώνται από το τι φιλτράρει το "Δες logs".
+        const diagStr = ' [DIAG dailyBaseline=' + dailyBaseline + ' steps=' + steps + ' total=' + (dailyBaseline + steps) + ' key=' + stepsDayKey + '] [INIT: ' + diagInitSnapshot + ']';
+        sensorDebug.textContent = '[TEST-D-OK] ' + baseLabel + ' [detector: ' + snap.diagDetectorEventCount + ' · counter: ' + snap.diagConfirmedEventCount + ']' + startInfoStr + errStr + diagStr;
         if (snap.cadenceSpm && snap.cadenceSpm > 0) triggerWalkingVisual();
         throttledNativeRenderSteps();
       });
@@ -8928,7 +9020,11 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
     showGoalCelebration();
   });
   renderSteps();
-  ensureStepTrackingStarted(); // ΝΕΟ: ξεκινάει αυτόματα, χωρίς να χρειάζεται πάτημα κουμπιού
+  // ΔΙΟΡΘΩΘΗΚΕ: το ensureStepTrackingStarted() ΔΕΝ καλείται πια εδώ (top-level, με τη φόρτωση της σελίδας) —
+  // αυτό έκανε να εμφανίζεται το native permission dialog ("Να επιτρέπεται στο FYTRA να έχει πρόσβαση στη
+  // σωματική σας δραστηριότητα;") πάνω στην ίδια την οθόνη εγγραφής/σύνδεσης, πριν καν προλάβει ο χρήστης
+  // να δημιουργήσει λογαριασμό. Τώρα καλείται ΜΟΝΟ μέσα στο enterApp(user), δηλαδή αφού ο χρήστης έχει
+  // ήδη συνδεθεί/εγγραφεί με επιτυχία (και το email του έχει επιβεβαιωθεί) — βλ. παρακάτω.
   setInterval(checkDayRollover, 60000); // ΝΕΟ: έλεγχος αλλαγής ημέρας κάθε λεπτό, ώστε να δουλεύει ακόμα κι αν η εφαρμογή μείνει ανοιχτή συνέχεια πέρα τα μεσάνυχτα
 
   // ---------- ΤΡΕΞΙΜΟ (χρησιμοποιεί τον ίδιο μηχανισμό μέτρησης, καθρεφτίζεται εδώ μόνο αν ενεργοποιήθηκε από αυτό το tab) ----------
@@ -17197,8 +17293,18 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
       const snap = await fbDb.ref('users/' + currentUser.uid + '/private/stepsHistory').get();
       const cloudHistory = snap.val();
       if (!cloudHistory) { syncStepsHistoryToCloud(); return; } // πρώτη φορά, ανεβάζουμε ό,τι έχουμε τοπικά
-      // συγχώνευση: κρατάμε ό,τι υπάρχει και στα δύο, με προτεραιότητα στο cloud
-      stepsHistory = Object.assign({}, stepsHistory, cloudHistory);
+      // ΔΙΟΡΘΩΣΗ: για τη ΣΗΜΕΡΙΝΗ μέρα συγκεκριμένα, ΔΕΝ αφήνουμε το cloud να αντικαταστήσει τυφλά το
+      // τοπικό — κρατάμε το ΜΕΓΑΛΥΤΕΡΟ από τα δύο σύνολα. Τα βήματα μιας μέρας μόνο αυξάνονται, ποτέ δεν
+      // μειώνονται· αν το cloud write από μια προηγούμενη, πολύ γρήγορη επανεκκίνηση δεν είχε προλάβει να
+      // ολοκληρωθεί (χρειάζεται σύνδεση internet, μερικά δευτερόλεπτα) πριν κλείσει η εφαρμογή, το παλιό
+      // cloud θα ξέγραφε το πιο πρόσφατο, μεγαλύτερο τοπικό σύνολο — αυτό ακριβώς έμοιαζε με "μηδενισμό".
+      const merged = Object.assign({}, stepsHistory, cloudHistory);
+      const localToday = stepsHistory[stepsDayKey];
+      const cloudToday = cloudHistory[stepsDayKey];
+      if (localToday && cloudToday) {
+        merged[stepsDayKey] = (localToday.steps || 0) >= (cloudToday.steps || 0) ? localToday : cloudToday;
+      }
+      stepsHistory = merged;
       if (stepsHistory[stepsDayKey]) dailyBaseline = stepsHistory[stepsDayKey].steps;
       sset('befit:stepsHistory', stepsHistory);
       renderDailyLog();
@@ -18068,6 +18174,63 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
   async function enterApp(user) {
     welcomeGate.classList.add('hidden');
     friendsView.style.display = 'block';
+    // ΝΕΟ: φορτώνουμε ΠΡΩΤΑ (και περιμένουμε να ολοκληρωθεί, await) το τοπικά αποθηκευμένο dailyBaseline
+    // ΠΡΙΝ ξεκινήσει ο αισθητήρας βημάτων — διορθώνει ένα πιθανό race condition όπου το πρώτο native
+    // step event έφτανε πριν προλάβει να φορτωθεί το ιστορικό, με αποτέλεσμα να αποθηκεύεται λανθασμένα
+    // μόνο ο νέος (session) αριθμός βημάτων και να "χάνεται" το ήδη καταγεγραμμένο σύνολο της ημέρας.
+    await restoreStepsPersistedState();
+    console.log('[FYTRA-DIAG] μετά restoreStepsPersistedState(): dailyBaseline=' + dailyBaseline + ' stepsDayKey=' + stepsDayKey + ' stepsHistory[today]=' + JSON.stringify(stepsHistory[stepsDayKey]));
+    // ΔΙΟΡΘΩΣΗ ΚΡΙΣΙΜΟΥ BUG (απώλεια ιστορικού προηγούμενων ημερών + μηδενισμός σημερινού συνόλου):
+    // Το await loadStepsHistoryFromCloud() μετακινήθηκε ΕΔΩ, ΠΡΙΝ το ensureStepTrackingStarted() παρακάτω
+    // (πριν ήταν ~40 γραμμές πιο κάτω, ΜΕΤΑ την εκκίνηση της ζωντανής μέτρησης). Το πρόβλημα: αν το
+    // permission ήταν ήδη δοσμένο (πολύ συχνό σε επαναλαμβανόμενες δοκιμές), ο αισθητήρας μπορούσε να
+    // στείλει το πρώτο event πολύ γρήγορα -> renderSteps() -> saveTodayStepsSnapshot() ->
+    // syncStepsHistoryToCloud() -> ΠΡΙΝ προλάβει να φορτωθεί/συγχωνευτεί το πλήρες ιστορικό από το cloud.
+    // Το syncStepsHistoryToCloud() κάνει .set() (πλήρη αντικατάσταση, όχι merge) στο cloud — αν έτρεχε με
+    // το τοπικό stepsHistory να έχει ΜΟΝΟ τη σημερινή μέρα (π.χ. μετά από φρέσκια εγκατάσταση, με άδειο
+    // local storage), ΔΙΕΓΡΑΦΕ ΜΟΝΙΜΑ όλες τις προηγούμενες ημέρες από το cloud. Τώρα το πλήρες
+    // (τοπικό+cloud συγχωνευμένο) ιστορικό είναι ΠΑΝΤΑ φορτωμένο ΠΡΙΝ μπορέσει να τρέξει οποιοδήποτε
+    // saveTodayStepsSnapshot(). Καμία επίδραση στο God Mode/v1/v2 filter.
+    await loadStepsHistoryFromCloud();
+    console.log('[FYTRA-DIAG] μετά loadStepsHistoryFromCloud(): dailyBaseline=' + dailyBaseline + ' stepsHistory[today]=' + JSON.stringify(stepsHistory[stepsDayKey]));
+    // ΔΙΟΡΘΩΣΗ: ρητή ανανέωση της οθόνης (κυκλικό καντράν) ΑΜΕΣΩΣ μόλις φορτωθεί το σωστό dailyBaseline —
+    // πριν, το καντράν έμενε στην προεπιλεγμένη τιμή "0" της σελίδας μέχρι να καταγραφεί το ΠΡΩΤΟ
+    // πραγματικό βήμα της νέας session (μόνο τότε καλούνταν το renderSteps() μέσω του live αισθητήρα).
+    // Το loadStepsHistoryFromCloud()/restoreStepsPersistedState() ενημέρωναν σωστά το dailyBaseline στη
+    // μνήμη, αλλά όχι την ίδια την οθόνη. Καμία επίδραση στο God Mode/v1/v2 — καθαρά ζήτημα εμφάνισης.
+    renderSteps();
+    // ΠΡΟΣΩΡΙΝΟ ΔΙΑΓΝΩΣΤΙΚΟ: εμφανίζουμε ΑΜΕΣΩΣ, ορατά στην οθόνη, τι τιμή είχε το dailyBaseline μόλις
+    // μετά τη φόρτωση ιστορικού — ΠΡΙΝ προλάβει να γίνει οποιοδήποτε βήμα ζωντανά. Αν στο screenshot
+    // αμέσως μετά το άνοιγμα φαίνεται ήδη λάθος/μηδενικό εδώ, το πρόβλημα είναι στη φόρτωση· αν φαίνεται
+    // σωστό εδώ αλλά μηδενίζεται αργότερα, το πρόβλημα είναι αλλού (π.χ. σε επόμενη αντικατάσταση).
+    sensorDebug.textContent = '[DIAG-INIT στο άνοιγμα] dailyBaseline=' + dailyBaseline + ' stepsHistory[' + stepsDayKey + ']=' + JSON.stringify(stepsHistory[stepsDayKey]);
+    diagInitSnapshot = 'dailyBaseline=' + dailyBaseline + ' history=' + JSON.stringify(stepsHistory[stepsDayKey]);
+    // ΝΕΟ: η αυτόματη εκκίνηση της καταμέτρησης βημάτων (και το σχετικό native permission dialog για
+    // "Φυσική δραστηριότητα") ξεκινάει ΕΔΩ πλέον, μόνο αφού ο χρήστης έχει ήδη συνδεθεί/εγγραφεί με
+    // επιτυχία — ΟΧΙ πριν, πάνω στην οθόνη εγγραφής (βλ. σχόλιο πιο κάτω στο σημείο όπου καλούνταν πριν).
+    // Το ensureStepTrackingStarted() είναι idempotent (μέσω του stepsEngineStarted flag), οπότε είναι
+    // ασφαλές ακόμα κι αν το tab Τρέξιμο/Together το ξανακαλέσει αργότερα.
+    // ΔΙΟΡΘΩΣΗ / ΚΡΙΣΙΜΟ: καλείται ΤΩΡΑ πρώτο, ΧΩΡΙΣ να περιμένει τίποτα άλλο πριν από αυτό — ώστε καμία
+    // δευτερεύουσα λειτουργία (π.χ. το checkClosedAppSteps παρακάτω) να μην μπορεί ΠΟΤΕ να καθυστερήσει ή
+    // να μπλοκάρει την εκκίνηση της ζωντανής μέτρησης (God Mode). Πριν, το checkClosedAppSteps() γινόταν
+    // await ΠΡΙΝ από αυτό, και επειδή ο TYPE_STEP_COUNTER αισθητήρας μπορεί να μην απαντήσει καθόλου αν ο
+    // χρήστης δεν έχει περπατήσει πρόσφατα, αυτό μπλόκαρε ΟΛΟΚΛΗΡΗ την εκκίνηση της μέτρησης επ' αόριστον.
+    ensureStepTrackingStarted();
+    // ΝΕΟ (Σενάριο Β — καταγραφή βημάτων όσο η εφαρμογή ήταν ΕΝΤΕΛΩΣ κλειστή): ΤΩΡΑ τρέχει ΠΑΡΑΛΛΗΛΑ,
+    // fire-and-forget (χωρίς await στο εξωτερικό enterApp) — δεν μπορεί ΠΟΤΕ πια να καθυστερήσει ή να
+    // μπλοκάρει το ensureStepTrackingStarted() παραπάνω, ό,τι κι αν συμβεί με τον αισθητήρα. Έχει επίσης
+    // δικό του 2.5s timeout από την πλευρά του Kotlin (βλ. checkClosedAppSteps στο FytraStepCounterPlugin.kt)
+    // ως δεύτερη, ανεξάρτητη ασφάλεια. Καμία επίδραση στο God Mode/v1/v2 filter σε καμία περίπτωση.
+    (async () => {
+      try {
+        const closedAppResult = await FytraStepEngine.checkClosedAppSteps();
+        if (closedAppResult && closedAppResult.available && closedAppResult.delta > 0) {
+          dailyBaseline += closedAppResult.delta;
+          saveTodayStepsSnapshot();
+          renderSteps();
+        }
+      } catch (e) { /* μη κρίσιμο */ }
+    })();
     // Προθάλαμος καλωσορίσματος — ΜΟΝΟ αμέσως μετά από πραγματική νέα εγγραφή (pendingWelcomeNickname
     // ορίστηκε στο signup block). Δεν μπλοκάρει τίποτα: η υπόλοιπη αρχικοποίηση συνεχίζει κανονικά από
     // κάτω, το overlay είναι απλά ένα σύντομο, μη-μπλοκάρον "πέπλο" πάνω από την ήδη φορτωμένη εφαρμογή.
@@ -18092,7 +18255,6 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
     document.getElementById('myEmailLabel').textContent = myNickname ? (myNickname + ' · ' + user.email) : user.email;
     syncProfileToCloud();
     syncLiveToCloud();
-    await loadStepsHistoryFromCloud();
     listenInvites();
     listenFriends();
     listenInbox();
@@ -18203,19 +18365,10 @@ const ASSET_HAIRLESS_BASE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAA
     const n = await sget('befit:notes');
     if (n) { notes = n; renderNotes(); renderCalendar(); }
 
-    const sh = await sget('befit:stepsHistory');
-    if (sh) {
-      stepsHistory = sh;
-      const existingKeys = Object.keys(stepsHistory).sort();
-      if (existingKeys.length) {
-        const lastKey = existingKeys[existingKeys.length - 1];
-        if (lastKey < stepsDayKey) { fillGapDays(lastKey, stepsDayKey); sset('befit:stepsHistory', stepsHistory); }
-      }
-      if (stepsHistory[stepsDayKey]) dailyBaseline = stepsHistory[stepsDayKey].steps;
-      renderDailyLog();
-    }
-    const gcd = await sget('befit:goalCelebratedDate');
-    if (gcd) goalCelebratedDate = gcd;
+    // ΝΕΟ: εξήχθη σε restoreStepsPersistedState() (ορισμός νωρίτερα στο αρχείο, κοντά στο checkDayRollover) —
+    // καλείται ΚΑΙ εδώ (κανονική ροή αρχικοποίησης) ΚΑΙ, ρητά/awaited, από το enterApp() πριν ξεκινήσει ο
+    // αισθητήρας βημάτων, ώστε το dailyBaseline να είναι πάντα φορτωμένο πριν φτάσει το πρώτο native event.
+    await restoreStepsPersistedState();
 
     const sr = await sget('befit:speedRecords');
     if (sr) speedRecords = sr;
