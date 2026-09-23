@@ -23,5 +23,6 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+        "capacitor-native-settings": "^8.2.0"
   }
 }
