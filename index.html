@@ -1908,12 +1908,46 @@
   .aud-chart-block { margin-bottom: 18px; }
   .aud-chart-title { font-size: 12.5px; font-weight: 700; color: #F4EFE4; margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; }
   .aud-chart-title .aud-chart-title-sub { font-size: 10.5px; color: #6B6878; font-weight: 500; }
-  .aud-bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 92px; padding: 0 2px; }
-  .aud-bar-chart .aud-bar-col { flex: 1 1 0; min-width: 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  /* ΔΙΟΡΘΩΘΗΚΕ (1/11, ζητήθηκε ρητά — "να μη μετράω κουτάκια", ακρίβεια στον άξονα ωρών): προστέθηκαν
+     οριζόντιες γραμμές-οδηγοί (25/50/75/100%) πίσω από τις μπάρες -> εύκολη οπτική σύγκριση ύψους χωρίς
+     να χρειάζεται να μετράς pixel. Το container είναι τώρα positioned ώστε οι γραμμές να απλώνονται ακριβώς
+     πίσω από τις μπάρες. */
+  .aud-bar-chart-wrap { position: relative; }
+  .aud-bar-chart-grid {
+    position: absolute; inset: 0; bottom: 0; height: 92px; display: flex; flex-direction: column;
+    justify-content: space-between; pointer-events: none;
+  }
+  .aud-bar-chart-grid span { display: block; height: 1px; background: rgba(255,255,255,0.055); }
+  .aud-bar-chart { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 92px; padding: 0 2px; }
+  .aud-bar-chart .aud-bar-col { flex: 1 1 0; min-width: 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; }
   .aud-bar-chart .aud-bar { width: 100%; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #FF9A3D, #B85C00); min-height: 2px; }
   .aud-bar-chart .aud-bar.empty { background: rgba(255,255,255,0.06); }
   .aud-bar-chart .aud-bar-col.today .aud-bar { background: linear-gradient(180deg, #6DEFC0, #1E9E6D); }
+  /* ΔΙΟΡΘΩΘΗΚΕ: η παλιά .aud-bar-axis (justify-content:space-between με ΜΟΝΟ 2-3 labels) ΔΕΝ ευθυγραμμιζόταν
+     με τις πραγματικές μπάρες -> αντικαταστάθηκε από .aud-axis-row: ΙΔΙΑ ακριβώς flex δομή (ίδιος αριθμός
+     στηλών, ίδιο gap) με το chart από πάνω -> κάθε ετικέτα κάθεται ΑΚΡΙΒΩΣ κάτω από τη δική της μπάρα, καμία
+     απόκλιση/μέτρημα κουτακιών. */
+  .aud-axis-row { display: flex; gap: 3px; padding: 0 2px; margin-top: 4px; }
+  .aud-axis-row span { flex: 1 1 0; min-width: 2px; text-align: center; font-size: 8.5px; color: #6B6878; white-space: nowrap; }
   .aud-bar-axis { display: flex; justify-content: space-between; font-size: 9px; color: #6B6878; margin-top: 4px; }
+
+  /* ΝΕΟ (1/11, ζητήθηκε ρητά) — επιλογέας περιόδου (Ημέρα/Εβδομάδα/Μήνας/Χρόνος) στο tab "Σελίδες". */
+  .aud-period-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .aud-period-btn {
+    flex: 1 1 0; text-align: center; padding: 7px 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04); color: #9C98A8; font-family: 'Inter', sans-serif; font-weight: 700;
+    font-size: 11px; cursor: pointer; transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .aud-period-btn.active { background: linear-gradient(135deg, #FF9A3D, #B85C00); border-color: transparent; color: #1A1208; }
+
+  /* ΝΕΟ (1/11, ζητήθηκε ρητά) — κουμπί απόκρυψης διαφήμισης, ΜΟΝΟ για τον admin (isSupportAdmin()). Η
+     native banner διαφήμιση είναι ΕΞΩ από το DOM (overlay πάνω στο WebView) -> αυτό το κουμπί απλά καλεί
+     AdMob.hideBanner()/showBanner(), δεν αγγίζει κανέναν άλλο μηχανισμό. */
+  .admob-admin-toggle {
+    position: fixed; right: 12px; bottom: 58px; z-index: 9999; width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(20,16,10,0.85); border: 1px solid rgba(255,255,255,0.18); color: #F4EFE4; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+  }
 
   .aud-emblem-row {
     display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -28065,6 +28099,34 @@ void main(){
         });
       } catch (e) {}
 
+      // ΝΕΟ (1/11, ζητήθηκε ρητά) — ΜΟΝΟ για τον admin (isSupportAdmin()): μικρό κουμπί "✕" που κρύβει/
+      // ξαναδείχνει το banner, όταν σου μπλοκάρει την ορατότητα κατά τον έλεγχο της εφαρμογής. Οι κανονικοί
+      // χρήστες ΔΕΝ το βλέπουν ΠΟΤΕ -> το banner τους δουλεύει ακριβώς όπως πριν. Χρησιμοποιεί τις δικές του
+      // μεθόδους hideBanner()/resumeBanner() του plugin -> καθαρά οπτικό, ΔΕΝ πειράζει την καταγραφή εμφανίσεων.
+      try {
+        if (typeof isSupportAdmin === 'function' && isSupportAdmin()) {
+          let bannerHidden = false;
+          const toggleBtn = document.createElement('div');
+          toggleBtn.className = 'admob-admin-toggle';
+          toggleBtn.textContent = '✕';
+          toggleBtn.title = 'Απόκρυψη/εμφάνιση δοκιμαστικής διαφήμισης (ορατό ΜΟΝΟ σε εσένα)';
+          toggleBtn.addEventListener('click', async () => {
+            try {
+              if (!bannerHidden) {
+                await AdMob.hideBanner();
+                bannerHidden = true;
+                toggleBtn.textContent = '👁';
+              } else {
+                await AdMob.resumeBanner();
+                bannerHidden = false;
+                toggleBtn.textContent = '✕';
+              }
+            } catch (e) {}
+          });
+          document.body.appendChild(toggleBtn);
+        }
+      } catch (e) {}
+
       // Interstitial: η πρώτη ~60 δευτερόλεπτα μετά το άνοιγμα, μετά ανά ~5 λεπτά χρήσης -> διακριτικό,
       // δεν ενοχλεί αμέσως στο άνοιγμα της εφαρμογής.
       const showInterstitial = async () => {
@@ -28745,6 +28807,8 @@ void main(){
   // ΝΕΟ (31/10, ζητήθηκε ρητά): ξεχωριστή κατάσταση για τον ΔΕΥΤΕΡΟ κατάλογο χρηστών, μέσα στο tab
   // Στατιστικά Χρηστών (analytics-only, χωρίς μηνύματα) -> ΔΕΝ μοιράζεται search/collapse state με της Support.
   let adminStatsOpenDetailUid = null;
+  // ΝΕΟ (1/11, ζητήθηκε ρητά) — επιλεγμένη περίοδος στο tab "Σελίδες" (Ημέρα/Εβδομάδα/Μήνας/Χρόνος).
+  let audPagesPeriod = 'week';
   let adminStatsDirSearchQuery = '';
   let adminStatsDirOnlineCollapsed = false;
   let adminStatsDirOfflineCollapsed = false;
@@ -28920,6 +28984,17 @@ void main(){
     }
     return out;
   }
+  // ΔΙΟΡΘΩΘΗΚΕ (1/11, ζητήθηκε ρητά — "μετράω κουτάκια, δεν είναι ακρίβεια"): (α) προστέθηκαν 4 λεπτές
+  // οριζόντιες γραμμές-οδηγοί (25/50/75/100% του max) πίσω από τις μπάρες, (β) ο οριζόντιος άξονας ΔΕΝ είναι
+  // πια ένα ξεχωριστό flex row με justify-content:space-between (που ΔΕΝ ευθυγραμμιζόταν με τις πραγματικές
+  // στήλες) -> τώρα είναι .aud-axis-row με ΑΚΡΙΒΩΣ την ίδια δομή (ίδιος αριθμός στηλών flex:1, ίδιο gap) με
+  // το ίδιο το .aud-bar-chart -> κάθε ημερομηνία κάθεται ΑΚΡΙΒΩΣ κάτω από τη δική της μπάρα, εγγυημένα.
+  function audGridLinesHtml() {
+    return '<div class="aud-bar-chart-grid"><span></span><span></span><span></span><span></span><span></span></div>';
+  }
+  function audAxisRowHtml(labels) {
+    return '<div class="aud-axis-row">' + labels.map(l => '<span>' + (l || '') + '</span>').join('') + '</div>';
+  }
   function audBarChartHtml(keys, valuesMap, field) {
     const todayK = todayKey();
     const vals = keys.map(k => Number((valuesMap[k] && valuesMap[k][field]) || 0));
@@ -28931,8 +29006,11 @@ void main(){
       return '<div class="aud-bar-col' + (k === todayK ? ' today' : '') + '" title="' + k + ': ' + vLabel + '">' +
         '<div class="aud-bar' + (v === 0 ? ' empty' : '') + '" style="height:' + h + 'px;"></div></div>';
     }).join('');
-    return '<div class="aud-bar-chart">' + cols + '</div>' +
-      '<div class="aud-bar-axis"><span>' + keys[0].slice(5) + '</span><span>' + keys[keys.length - 1].slice(5) + '</span></div>';
+    // ΝΕΟ: label κάθε ~ceil(n/6)-στη στήλη (ΠΑΝΤΑ και η τελευταία) -> ευανάγνωστο, χωρίς συνωστισμό, όσα κλειδιά κι αν έρθουν.
+    const step = Math.max(1, Math.ceil(keys.length / 6));
+    const labels = keys.map((k, i) => (i % step === 0 || i === keys.length - 1) ? k.slice(5) : '');
+    return '<div class="aud-bar-chart-wrap">' + audGridLinesHtml() + '<div class="aud-bar-chart">' + cols + '</div></div>' +
+      audAxisRowHtml(labels);
   }
   async function renderAdminUserActivityTab(uid) {
     const el = document.getElementById('audActivityContent');
@@ -29097,7 +29175,10 @@ void main(){
       return '<div class="aud-bar-col" title="' + hourLabel + ': ' + audFormatHm(v) + '">' +
         '<div class="aud-bar' + (v === 0 ? ' empty' : '') + '" style="height:' + hgt + 'px;"></div></div>';
     }).join('');
-    return '<div class="aud-bar-chart">' + cols + '</div><div class="aud-bar-axis"><span>00:00</span><span>12:00</span><span>23:00</span></div>';
+    // ΔΙΟΡΘΩΘΗΚΕ (1/11, ζητήθηκε ρητά): label ΚΑΘΕ 3η ώρα (00,03,06...21) -> 8 ετικέτες, μία ΑΚΡΙΒΩΣ κάτω από
+    // κάθε αντίστοιχη στήλη (ίδια δομή .aud-axis-row με το chart) -> καμία ανάγκη να "μετράς κουτάκια".
+    const labels = hourKeys.map((h, i) => (i % 3 === 0) ? (('0' + h).slice(-2) + ':00') : '');
+    return '<div class="aud-bar-chart-wrap">' + audGridLinesHtml() + '<div class="aud-bar-chart">' + cols + '</div></div>' + audAxisRowHtml(labels);
   }
   // ΔΙΟΡΘΩΘΗΚΕ (31/10, ζητήθηκε ρητά): προστέθηκαν (α) μέσος όρος χρόνου ΚΑΙ ανά ημέρα ΚΑΙ ανά εβδομάδα
   // ανά σελίδα (ο εβδομαδιαίος προκύπτει ΜΑΘΗΜΑΤΙΚΑ από τον ημερήσιο ×7 πάνω στα ΙΔΙΑ δεδομένα -> δεν
@@ -29105,6 +29186,15 @@ void main(){
   // ποσοστού) για ΠΟΙΕΣ ΩΡΕΣ της ημέρας χρησιμοποιείται η εφαρμογή -> ένα συγκεντρωτικό (όλες οι σελίδες)
   // + ένα ξεχωριστό ανά σελίδα για τις 3 πιο δημοφιλείς (ώστε να μη γεμίζει η οθόνη με άδεια διαγράμματα
   // για σελίδες με αμελητέο χρόνο).
+  // ΝΕΟ (1/11, ζητήθηκε ρητά) — οι 4 διαθέσιμες περίοδοι για το tab "Σελίδες" + πόσες (τελευταίες) ημέρες
+  // δεδομένων αντιστοιχεί η καθεμία. "Χρόνος" = 365 ημέρες -> στην πράξη ΟΛΑ τα διαθέσιμα δεδομένα, αφού
+  // δεν θα υπάρχουν συνήθως πάνω από ένα έτος καταγραφής.
+  const AUD_PAGES_PERIODS = { day: { label: 'Ημέρα', days: 1 }, week: { label: 'Εβδομάδα', days: 7 }, month: { label: 'Μήνας', days: 30 }, year: { label: 'Χρόνος', days: 365 } };
+  function audFilterDayKeysByPeriod(dayKeys, period) {
+    const sorted = dayKeys.slice().sort(); // ISO (YYYY-MM-DD) -> ταξινομείται σωστά αλφαβητικά/χρονολογικά
+    const n = (AUD_PAGES_PERIODS[period] || AUD_PAGES_PERIODS.week).days;
+    return sorted.slice(Math.max(0, sorted.length - n));
+  }
   async function renderAdminUserPagesTab(uid) {
     const el = document.getElementById('audPagesContent');
     el.className = '';
@@ -29115,12 +29205,17 @@ void main(){
       ]);
       const dayData = daySnap.val() || {};
       const hourData = hourSnap.val() || {}; // { tabKey: { '0'..'23': ms } }
-      const dayKeys = Object.keys(dayData);
-      if (!dayKeys.length) {
+      const allDayKeys = Object.keys(dayData);
+      if (!allDayKeys.length) {
         el.className = 'note';
         el.textContent = 'Δεν υπάρχουν ακόμα καταγεγραμμένα δεδομένα χρόνου ανά σελίδα για αυτόν τον χρήστη — συλλέγονται από εδώ και πέρα, σε κάθε χρήση της εφαρμογής.';
         return;
       }
+      // ΝΕΟ: η κατανομή/στατιστικά ανά σελίδα φιλτράρονται στην επιλεγμένη περίοδο (audPagesPeriod). Το
+      // ωριαίο προφίλ (ποιες ώρες της ημέρας) παραμένει ΠΑΝΤΑ άθροισμα ΟΛΩΝ των ημερών -> εξηγείται ρητά
+      // στον υπότιτλο του διαγράμματος, γιατί η αποθήκευση (tabTimeHourly) δεν κρατάει ξεχωριστό ιστορικό
+      // ανά ημέρα για τις ώρες (μόνο σωρευτικό), άρα δεν υπάρχει τρόπος να "φιλτραριστεί" με ακρίβεια.
+      const dayKeys = audFilterDayKeysByPeriod(allDayKeys, audPagesPeriod);
       const totalsByTab = {};
       let grandTotalMs = 0;
       dayKeys.forEach(dk => {
@@ -29144,17 +29239,24 @@ void main(){
       const aggHoursMap = {};
       Array.from({ length: 24 }, (_, i) => String(i)).forEach(h => { aggHoursMap[h] = { ms: aggHours[h] || 0 }; });
 
-      let html = '<div class="aud-stat-grid">' +
-        '<div class="aud-stat-card"><div class="aud-stat-label">Συνολικός καταγεγραμμένος χρόνος</div><div class="aud-stat-value">' + audFormatHm(grandTotalMs) + '</div></div>' +
+      let html = '<div class="aud-period-row">' + Object.keys(AUD_PAGES_PERIODS).map(p =>
+        '<div class="aud-period-btn' + (p === audPagesPeriod ? ' active' : '') + '" data-aud-period="' + p + '">' + AUD_PAGES_PERIODS[p].label + '</div>'
+      ).join('') + '</div>';
+
+      html += '<div class="aud-stat-grid">' +
+        '<div class="aud-stat-card"><div class="aud-stat-label">Καταγεγραμμένος χρόνος</div><div class="aud-stat-value">' + audFormatHm(grandTotalMs) + '</div><div class="aud-stat-sub">περίοδος: ' + AUD_PAGES_PERIODS[audPagesPeriod].label.toLowerCase() + '</div></div>' +
         '<div class="aud-stat-card"><div class="aud-stat-label">Ημέρες με δεδομένα</div><div class="aud-stat-value">' + numDays + '</div></div>' +
       '</div>';
 
       if (Object.keys(aggHours).length) {
-        html += '<div class="aud-chart-block"><div class="aud-chart-title">⏰ Ώρες χρήσης <span class="aud-chart-title-sub">άθροισμα όλων των σελίδων &amp; ημερών</span></div>' +
+        html += '<div class="aud-chart-block"><div class="aud-chart-title">⏰ Ώρες χρήσης <span class="aud-chart-title-sub">άθροισμα όλων των ημερών (δεν φιλτράρεται από την περίοδο)</span></div>' +
           audHourChartHtml(aggHoursMap) + '</div>';
       }
 
-      html += '<div class="aud-chart-title" style="margin-bottom:6px;">📄 Κατανομή χρόνου ανά σελίδα</div>';
+      html += '<div class="aud-chart-title" style="margin-bottom:6px;">📄 Κατανομή χρόνου ανά σελίδα <span class="aud-chart-title-sub">περίοδος: ' + AUD_PAGES_PERIODS[audPagesPeriod].label.toLowerCase() + '</span></div>';
+      if (!ranked.length) {
+        html += '<div class="note">Καμία καταγεγραμμένη χρήση σε αυτή την περίοδο.</div>';
+      }
       html += ranked.map(r => {
         const pct = grandTotalMs ? Math.round(r.ms / grandTotalMs * 100) : 0;
         const avgPerDay = r.ms / numDays;
@@ -29169,7 +29271,7 @@ void main(){
 
       const top3 = ranked.slice(0, 3).filter(r => hourData[r.tabKey] && Object.keys(hourData[r.tabKey]).length);
       if (top3.length) {
-        html += '<div class="aud-chart-title" style="margin-top:16px; margin-bottom:2px;">⏰ Ώρες χρήσης ανά σελίδα <span class="aud-chart-title-sub">οι 3 πιο δημοφιλείς</span></div>';
+        html += '<div class="aud-chart-title" style="margin-top:16px; margin-bottom:2px;">⏰ Ώρες χρήσης ανά σελίδα <span class="aud-chart-title-sub">οι 3 πιο δημοφιλείς · όλες οι ημέρες</span></div>';
         html += top3.map(r => {
           const hd = hourData[r.tabKey] || {};
           const m = {};
@@ -29184,6 +29286,15 @@ void main(){
       el.textContent = 'Σφάλμα φόρτωσης ανάλυσης σελίδων: ' + e.message;
     }
   }
+  // ΝΕΟ (1/11, ζητήθηκε ρητά) — delegated click handler για τα κουμπιά περιόδου (το audPagesContent element
+  // παραμένει στο DOM, μόνο το innerHTML του αλλάζει κάθε render -> ΕΝΑΣ listener εδώ, όχι μέσα στο render,
+  // αποφεύγει διπλά/πολλαπλά listeners).
+  document.getElementById('audPagesContent').addEventListener('click', (e) => {
+    const btn = e.target.closest('.aud-period-btn');
+    if (!btn || !adminStatsOpenDetailUid) return;
+    audPagesPeriod = btn.dataset.audPeriod;
+    renderAdminUserPagesTab(adminStatsOpenDetailUid);
+  });
   document.getElementById('audTabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.aud-tab');
     if (!btn) return;
