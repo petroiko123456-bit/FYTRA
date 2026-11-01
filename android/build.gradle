@@ -9,7 +9,13 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
         classpath 'com.google.gms:google-services:4.4.4'
-classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.22'
+// ΔΙΟΡΘΩΘΗΚΕ (1/11, build error): το @capacitor-community/admob φέρνει νεότερο Google Mobile Ads SDK /
+// User Messaging Platform SDK, τα οποία είναι μεταγλωττισμένα με Kotlin 2.x metadata -> ασύμβατα με το
+// παλιό 1.9.22 του project ("compiled with an incompatible version of Kotlin"). Το Kotlin 2.0.21 είναι
+// πλήρως συμβατό με AGP 8.13.0/Gradle 8.14.3 που ήδη χρησιμοποιεί το project, και με τον υπόλοιπο
+// υπάρχοντα Kotlin κώδικα (FytraStepCounterPlugin.kt/FytraMidnightSnapshotReceiver.kt) -> backward
+// compatible, ΚΑΜΙΑ επίδραση στο God Mode/βήματα.
+classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
