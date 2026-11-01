@@ -60,6 +60,16 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- ΝΕΟ (31/10, ζητήθηκε ρητά): AdMob App ID -> απαιτείται από το @capacitor-community/admob plugin
+             ΑΚΟΜΑ κι όταν δεν έχει τρέξει καμία διαφήμιση ακόμα (αλλιώς crash στο initialize()). Αυτό είναι
+             το ΕΠΙΣΗΜΟ δημόσιο TEST App ID της Google (ca-app-pub-3940256099942544~3347511713, τεκμηριωμένο
+             σε developers.google.com/admob/android/test-ads) -> δείχνει ΜΟΝΟ δοκιμαστικές διαφημίσεις, καμία
+             πραγματική χρέωση/έσοδο, ΔΕΝ χρειάζεται δικό σου AdMob account ακόμα. ΑΝΤΙΚΑΤΑΣΤΗΣΕ το value με
+             το δικό σου πραγματικό App ID μόλις δημιουργήσεις λογαριασμό AdMob. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
     </application>
 
     <!-- Permissions -->
