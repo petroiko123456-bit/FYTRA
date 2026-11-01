@@ -32,7 +32,9 @@ repositories {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
+    // ΔΙΟΡΘΩΘΗΚΕ (1/11, build error) — βλ. σχόλιο στο android/build.gradle: Kotlin 2.0.21 για συμβατότητα
+    // με το Google Mobile Ads SDK / UMP SDK του @capacitor-community/admob.
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
