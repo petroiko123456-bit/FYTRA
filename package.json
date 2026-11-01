@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/petroiko123456-bit/FYTRA#readme",
   "dependencies": {
+    "@capacitor-community/admob": "^7.0.3",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
