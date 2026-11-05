@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11, ζητήθηκε ρητά): μεταδεδομένα του home-screen widget βημάτων. Ένα μέγεθος, μικρό και
+     απλό (κατά προτίμηση του χρήστη) -> ελάχιστο 2x1 κελιά (~110x40dp), με δυνατότητα resize σε
+     πλάτος/ύψος αν ο χρήστης θέλει μεγαλύτερο. updatePeriodMillis=1800000 (30 λεπτά) -> ελάχιστο
+     αξιόπιστο διάστημα που επιτρέπει το ίδιο το Android (τιμές κάτω από ~30' αγνοούνται από το OS),
+     λειτουργεί ως εφεδρική/περιοδική ανανέωση· η ΖΩΝΤΑΝΗ ανανέωση γίνεται απευθείας από την εφαρμογή
+     (FytraStepEngine.updateWidgetNative) κάθε φορά που υπολογίζονται νέα βήματα όσο αυτή είναι ανοιχτή
+     ή τρέχει το Foreground Service στο παρασκήνιο. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_steps"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_steps_description">
+</appwidget-provider>
