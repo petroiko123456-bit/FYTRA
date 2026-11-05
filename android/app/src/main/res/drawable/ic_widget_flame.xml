@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): στατικό εικονίδιο φλόγας (kcal), πάντα πορτοκαλί — ανεξάρτητο από το επιλεγμένο θέμα. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,2C11,5 7,7 7,12A5,5 0,0 0,17 12C17,10 16,9 16,9C16,9 16.5,11 15,11.5C16,9.5 15.5,7.5 14,6C13.7,8 12.5,9 12,10C11.5,8 13,5 12,2Z"
+        android:fillColor="#FF9A3D"/>
+</vector>

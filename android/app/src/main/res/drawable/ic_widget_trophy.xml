@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): στατικό εικονίδιο κυπέλλου, εμφανίζεται ΜΟΝΟ στην κάρτα "Στόχος!" — το φόντο εκείνης
+     της κάρτας είναι πάντα ανοιχτόχρωμο/χρυσό (goal_card_bg.xml), άρα το σκούρο περίγραμμα μένει ίδιο
+     ανεξάρτητα από το επιλεγμένο θέμα χρώματος του υπόλοιπου widget. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M8,21h8"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M12,17v4"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M7,4h10v5a5,5 0,0 1,-10 0V4Z"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M7,5H4.5A1.5,1.5 0,0 0,3 6.5C3,8.43 4.57,10 6.5,10H7"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M17,5h2.5A1.5,1.5 0,0 1,21 6.5C21,8.43 19.43,10 17.5,10H17"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

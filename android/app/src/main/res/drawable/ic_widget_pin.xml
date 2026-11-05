@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): στατικό εικονίδιο pin (απόσταση/km), πάντα γαλάζιο — ανεξάρτητο από το επιλεγμένο θέμα. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M20,10C20,16 12,22 12,22C12,22 4,16 4,10A8,8 0,0 1,20 10Z"
+        android:strokeColor="#4DE8FF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M9,10 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:strokeColor="#4DE8FF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"/>
+</vector>

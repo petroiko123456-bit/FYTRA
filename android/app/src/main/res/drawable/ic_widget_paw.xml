@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): στατικό εικονίδιο "πατούσες" για το brand badge του widget — ίδιο σε όλα τα θέματα
+     (σκούρο περίγραμμα, πάντα πάνω σε ανοιχτόχρωμο gradient badge). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3.5,10.5v-1.6C3.5,7.3 2.98,6.6 3,5.2C3.02,3.4 4,1.2 6,1.2C7.2,1.2 7.7,2.4 7.7,3.5C7.7,5.6 6.4,7.3 6.4,9.3v1.2a1.35,1.35 0,1 1,-2.7 0Z"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M13.5,13.3v-1.6c0,-1.6 -0.52,-2.3 -0.5,-3.7C13.02,6.2 14,4 16,4C17.2,4 17.7,5.2 17.7,6.3C17.7,8.4 16.4,10.1 16.4,12.1v1.2a1.35,1.35 0,1 1,-2.7 0Z"
+        android:strokeColor="#241A0C"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

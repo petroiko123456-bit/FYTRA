@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): φόντο κάρτας στατιστικού (kcal/km), θέμα "emerald". -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="16dp"/>
+    <solid android:color="#145AFFB4"/>
+    <stroke android:width="1dp" android:color="#295AFFB4"/>
+</shape>

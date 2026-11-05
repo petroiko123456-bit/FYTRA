@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11): εικονίδιο παλέτας (κουμπί αλλαγής θέματος). Βάφεται δυναμικά στο χρώμα του ΤΡΕΧΟΝΤΟΣ
+     θέματος μέσω RemoteViews.setInt(id, "setColorFilter", accentColor) στο buildRemoteViews(), το
+     fillColor εδώ είναι απλά placeholder, αντικαθίσταται πάντα runtime. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,2C6.5,2 2,6.5 2,12C2,17.5 6.5,22 12,22C12.93,22 13.65,21.25 13.65,20.31C13.65,19.88 13.47,19.48 13.21,19.19C12.92,18.9 12.78,18.54 12.78,18.06C12.78,17.15 13.52,16.4 14.44,16.4H16.43C19.48,16.4 22,13.9 22,10.85C21.97,6.01 17.46,2 12,2Z"
+        android:fillColor="#FFE07A"/>
+    <path
+        android:pathData="M13,6.5 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"
+        android:fillColor="#00000066"/>
+    <path
+        android:pathData="M17.5,10.5 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"
+        android:fillColor="#00000066"/>
+    <path
+        android:pathData="M8.5,7.5 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"
+        android:fillColor="#00000066"/>
+    <path
+        android:pathData="M6.5,12.5 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"
+        android:fillColor="#00000066"/>
+</vector>
