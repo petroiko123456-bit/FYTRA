@@ -18,8 +18,8 @@
         android:gravity="center_vertical"
         android:paddingStart="18dp"
         android:paddingEnd="18dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="16dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
 
         <!-- ================= TOP ROW: brand + theme button + (προαιρετική) κάρτα στόχου ================= -->
         <LinearLayout
@@ -141,6 +141,11 @@
              ΠΛΑΤΟΣ (π.χ. η κάρτα "Στόχος!" παρακάτω), που είναι πολύ πιο αξιόπιστο. Αλλάζει σε
              wrap_content -> το ύψος της σειράς καθορίζεται πλέον από το ΙΔΙΟ το περιεχόμενο (ο
              δακτύλιος έχει σταθερό μέγεθος 86dp), όχι από flexible fill, άρα δεν μπορεί να "καταρρεύσει". -->
+        <!-- ΔΙΟΡΘΩΣΗ (bug report, "πολύ περιθώριο πάνω/κάτω"): το εξωτερικό padding πάνω/κάτω μικρύνθηκε
+             (14/16dp -> 8/8dp) και ο δακτύλιος μεγάλωσε ελάχιστα (86dp -> 94dp, βλ. και drawProgressRingBitmap)
+             ώστε το περιεχόμενο να γεμίζει καλύτερα το ύψος του widget. Μέρος του εναπομείναντος κενού
+             μπορεί να οφείλεται στο πόσο ψηλό κελί δίνει ο launcher (π.χ. One UI) στο minHeight/targetCellHeight
+             του widget_steps_info.xml, εκτός ελέγχου μας από εδώ, γι' αυτό μικρύναμε και εκείνα. -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -149,8 +154,8 @@
             android:gravity="center_vertical">
 
             <FrameLayout
-                android:layout_width="86dp"
-                android:layout_height="86dp">
+                android:layout_width="94dp"
+                android:layout_height="94dp">
 
                 <!-- Γεμίζει δυναμικά με setImageViewBitmap(), βλ. drawProgressRingBitmap() -->
                 <ImageView
