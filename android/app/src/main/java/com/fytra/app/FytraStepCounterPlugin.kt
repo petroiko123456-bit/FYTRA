@@ -1336,20 +1336,24 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             // καθόλου ζωντανό JS. Αν δεν σταλεί (παλιότερο JS), κρατάμε ό,τι ήδη είχε αποθηκευτεί.
             val strideVal = call.getDouble("strideM")
             val goalVal = call.getInt("goal")
-            val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            val editor = prefs.edit()
-                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, stepsVal)
-                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, kcalVal)
-                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
-                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+            // ΔΙΟΡΘΩΣΗ (applicationContext, ίδιος λόγος με pushWidgetUpdateFromNativeCredit): χρησιμοποιούμε
+            // ΠΑΝΤΟΤΕ το process-level context εδώ, όχι το (πιθανόν ήδη δεμένο με καταστραμμένο Activity) context.
+            val appCtx = context.applicationContext ?: context
+            val prefs = appCtx.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val miscEditor = prefs.edit()
+            var hasMiscChange = false
             if (strideVal != null && strideVal > 0.0) {
-                editor.putFloat(FytraStepsWidgetProvider.KEY_WIDGET_STRIDE_M, strideVal.toFloat())
+                miscEditor.putFloat(FytraStepsWidgetProvider.KEY_WIDGET_STRIDE_M, strideVal.toFloat())
+                hasMiscChange = true
             }
             if (goalVal != null && goalVal > 0) {
-                editor.putInt(FytraStepsWidgetProvider.KEY_WIDGET_GOAL, goalVal)
+                miscEditor.putInt(FytraStepsWidgetProvider.KEY_WIDGET_GOAL, goalVal)
+                hasMiscChange = true
             }
-            editor.apply()
-            FytraStepsWidgetProvider.requestWidgetUpdate(context)
+            if (hasMiscChange) miscEditor.apply()
+            // ΝΕΟ: τα βήματα/kcal/km περνάνε πλέον από τον ΚΟΙΝΟ φρουρό (writeWidgetDisplayCacheGuarded) —
+            // βλ. πλήρες σχόλιο εκεί. Διορθώνει το "μηδενίζει μόλις ανοίξω την εφαρμογή" bug.
+            writeWidgetDisplayCacheGuarded(appCtx, stepsVal, kcalVal, kmVal.toFloat())
             call.resolve()
         } catch (e: Exception) {
             Log.d(TAG, "updateWidgetData ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
@@ -1970,16 +1974,48 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             val kmVal = (totalToday * strideM) / 1000.0
             // ΣΗΜΕΙΩΣΗ: ΔΕΝ γράφουμε εδώ το KEY_WIDGET_GOAL -- αυτό ενημερώνεται ΜΟΝΟ από το JS
             // (updateWidgetData όταν υπάρχει ζωντανό WebView), το native side απλά το διαβάζει.
-            widgetPrefs.edit()
-                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, totalToday.toInt())
-                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, kcalVal)
-                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
-                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, now)
-                .apply()
-            FytraStepsWidgetProvider.requestWidgetUpdate(appCtx)
+            writeWidgetDisplayCacheGuarded(appCtx, totalToday.toInt(), kcalVal, kmVal.toFloat())
             Log.d(TAG, "pushWidgetUpdateFromNativeCredit: ΟΚ, totalToday=$totalToday kcal=$kcalVal km=" + String.format("%.2f", kmVal))
         } catch (e: Exception) {
             Log.d(TAG, "pushWidgetUpdateFromNativeCredit ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+        }
+    }
+
+    // ΝΕΟ (ΔΙΟΡΘΩΣΗ BUG, "μόλις ανοίξω την εφαρμογή μηδενίζει το widget σε όλα μέχρι να περπατήσω ξανά"):
+    // κοινός, φρουρούμενος (guarded) τρόπος γραφής στο widget "display cache", χρησιμοποιείται ΚΑΙ από το
+    // updateWidgetData() (JS path) ΚΑΙ από το pushWidgetUpdateFromNativeCredit() (native-only path) παραπάνω.
+    // Αιτία του bug: όταν ανοίγει η εφαρμογή, το ΠΡΩΤΟ renderSteps() (index.html, μέσα στο enterApp()) τρέχει
+    // ΠΡΙΝ ολοκληρωθεί το ασύγχρονο checkClosedAppSteps() που ανακτά τα βήματα της κλειστής περιόδου -> αυτό
+    // το πρώτο κάλεσμα έστελνε προσωρινά ένα χαμηλότερο/μηδενικό "total" (dailyBaseline ακόμα 0 ή παλιό +
+    // steps=0) πάνω από την ήδη σωστή τιμή που είχε ήδη γράψει το native creditOneStep() όσο η εφαρμογή ήταν
+    // κλειστή. ΛΥΣΗ (ίδιο ΑΚΡΙΒΩΣ πνεύμα με το "ΠΟΤΕ δεν μειώνει" self-heal που υπάρχει ήδη στο index.html):
+    // μέσα στην ΙΔΙΑ ημερολογιακή μέρα, μια νέα τιμή βημάτων ΠΟΤΕ δεν επιτρέπεται να είναι μικρότερη από την
+    // ήδη αποθηκευμένη -- αγνοείται σιωπηλά (το widget απλά κρατάει την τελευταία σωστή τιμή μέχρι το JS να
+    // προλάβει). Σε ΝΕΑ μέρα (dayKey άλλαξε) επιτρέπεται πάντα η νέα τιμή, ΑΚΟΜΑ και μηδέν, ώστε ο καθημερινός
+    // μηδενισμός να δουλεύει κανονικά. ΚΑΜΙΑ επίδραση στο God Mode/v1/v2 filter -- καθαρά φρουρός εγγραφής σε
+    // ένα display-only cache.
+    private fun writeWidgetDisplayCacheGuarded(appCtx: android.content.Context, newSteps: Int, newKcal: Int, newKm: Float) {
+        try {
+            val prefs = appCtx.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            val storedDayKey = prefs.getString(FytraStepsWidgetProvider.KEY_WIDGET_DAYKEY, "") ?: ""
+            val storedSteps = prefs.getInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, 0)
+            val isNewDay = storedDayKey != todayKey
+            if (!isNewDay && newSteps < storedSteps) {
+                // Αγνοούμε την πρόωρη/χαμηλότερη τιμή -- κρατάμε ό,τι ήδη δείχνει το widget.
+                Log.d(TAG, "writeWidgetDisplayCacheGuarded: ΑΓΝΟΗΘΗΚΕ χαμηλότερη τιμή ($newSteps < $storedSteps, ίδια μέρα)")
+                return
+            }
+            prefs.edit()
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, newSteps)
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, newKcal)
+                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, newKm)
+                .putString(FytraStepsWidgetProvider.KEY_WIDGET_DAYKEY, todayKey)
+                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+                .apply()
+            FytraStepsWidgetProvider.requestWidgetUpdate(appCtx)
+        } catch (e: Exception) {
+            Log.d(TAG, "writeWidgetDisplayCacheGuarded ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
         }
     }
 
