@@ -1941,7 +1941,17 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             if (now - lastNativeWidgetPushMs < NATIVE_WIDGET_PUSH_MIN_INTERVAL_MS) return
             lastNativeWidgetPushMs = now
 
-            val closedAppPrefs = context.getSharedPreferences(CLOSED_APP_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            // ΔΙΟΡΘΩΣΗ (bug report 5/11 -- "ούτε μετράει με κλειστή εφαρμογή"): το Capacitor Plugin.context
+            // είναι συχνά δεμένο με το Activity (MainActivity), όχι με το process -> μόλις ο χρήστης κλείσει
+            // ΤΕΛΕΙΩΣ την εφαρμογή (swipe-away) το Activity καταστρέφεται ΑΛΛΑ το ίδιο Plugin instance
+            // συνεχίζει να τρέχει (άρα και το creditOneStep() παρακάτω), κρατώντας όμως ένα ΗΔΗ-πεθαμένο
+            // Activity context. Το SharedPreferences read/write φαίνεται να δουλεύει ΑΚΟΜΑ και με πεθαμένο
+            // Activity context (γι' αυτό δούλευε ήδη το KEY_PENDING_UNACKED_STEPS), αλλά το sendBroadcast()
+            // μέσα στο requestWidgetUpdate() πιθανότατα όχι -> χρησιμοποιούμε ΕΔΩ ρητά το applicationContext
+            // (δεμένο με το process, ΠΟΤΕ δεν "πεθαίνει" όσο ζει το FytraStepForegroundService) παντού.
+            val appCtx = context.applicationContext ?: context
+
+            val closedAppPrefs = appCtx.getSharedPreferences(CLOSED_APP_PREFS_NAME, android.content.Context.MODE_PRIVATE)
             val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
             val baselineDayKey = closedAppPrefs.getString(KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
             val baselineSteps = closedAppPrefs.getInt(KEY_DAILY_BASELINE_STEPS, 0)
@@ -1950,7 +1960,7 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             // το προσθέτουμε -- μετράμε ΜΟΝΟ ό,τι πιστώθηκε στο τρέχον session.
             val totalToday = if (baselineDayKey == todayKey) baselineSteps + internalStepCount else internalStepCount
 
-            val widgetPrefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val widgetPrefs = appCtx.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
             // ΙΔΙΑ σταθερά με το KCAL_PER_STEP στο index.html (0.04) -- μετατροπή, καμία επίδραση στον
             // μετρητή βημάτων. Για km χρησιμοποιούμε τον τελευταίο γνωστό, εξατομικευμένο διασκελισμό που
             // έστειλε το JS (βλ. KEY_WIDGET_STRIDE_M) -- fallback στο προεπιλεγμένο 0.75m αν δεν έχει σταλεί
@@ -1966,8 +1976,11 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                 .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
                 .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, now)
                 .apply()
-            FytraStepsWidgetProvider.requestWidgetUpdate(context)
-        } catch (e: Exception) { /* μη κρίσιμο -- το widget απλά δεν ανανεώθηκε αυτή τη φορά */ }
+            FytraStepsWidgetProvider.requestWidgetUpdate(appCtx)
+            Log.d(TAG, "pushWidgetUpdateFromNativeCredit: ΟΚ, totalToday=$totalToday kcal=$kcalVal km=" + String.format("%.2f", kmVal))
+        } catch (e: Exception) {
+            Log.d(TAG, "pushWidgetUpdateFromNativeCredit ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+        }
     }
 
     // ============================================================================
