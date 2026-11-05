@@ -6030,27 +6030,43 @@
     animation: antechamberCaretBlink 0.8s step-end infinite;
   }
   @keyframes antechamberCaretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-  /* ΝΕΟ (5/11, ζητήθηκε ρητά): banner πρότασης δημιουργίας widget — fixed στο κάτω μέρος της οθόνης,
-     πάνω από όλο το υπόλοιπο περιεχόμενο, εμφανίζεται/κρύβεται μέσω της κλάσης .show (ίδιο πρότυπο
-     opacity+pointer-events με το welcome-antechamber παραπάνω, ώστε να γίνεται ομαλό fade). */
+  /* ΝΕΟ (5/11, ζητήθηκε ρητά): banner πρότασης δημιουργίας widget — εμφανίζεται/κρύβεται μέσω της κλάσης
+     .show (ίδιο πρότυπο opacity+pointer-events με το welcome-antechamber παραπάνω, ώστε να γίνεται ομαλό
+     fade). ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά): μετακινήθηκε από το ΚΑΤΩ στο ΕΠΑΝΩ μέρος της οθόνης (top, με
+     ασφαλές περιθώριο από το notch/status bar μέσω env(safe-area-inset-top), ίδιο πρότυπο με τα υπόλοιπα
+     fixed-στο-πάνω στοιχεία της εφαρμογής) και πήρε μια χρυσή, απαλά παλλόμενη "αύρα" γύρω-γύρω (βλ.
+     widgetPromptAuraGlow keyframes παρακάτω) αντί για το στατικό γαλάζιο περίγραμμα που είχε πριν. */
   .widget-prompt-banner {
-    position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 180;
+    position: fixed; left: 16px; right: 16px; top: max(16px, env(safe-area-inset-top, 0px)); z-index: 180;
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(135deg, #16202B 0%, #0E161E 100%);
-    border: 1px solid rgba(77, 232, 255, 0.35);
+    background: linear-gradient(135deg, #1E180A 0%, #120D05 100%);
+    border: 1px solid rgba(255, 224, 122, 0.45);
     border-radius: 16px;
     padding: 14px 16px;
     box-shadow: 0 10px 30px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.3);
-    opacity: 0; transform: translateY(12px); pointer-events: none;
+    opacity: 0; transform: translateY(-14px); pointer-events: none;
     transition: opacity .35s ease, transform .35s ease;
   }
-  .widget-prompt-banner.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .widget-prompt-banner.show {
+    opacity: 1; transform: translateY(0); pointer-events: auto;
+    animation: widgetPromptAuraGlow 2.6s ease-in-out infinite;
+  }
+  @keyframes widgetPromptAuraGlow {
+    0%, 100% {
+      border-color: rgba(255, 224, 122, 0.35);
+      box-shadow: 0 10px 30px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.3), 0 0 0px rgba(255,224,122,0);
+    }
+    50% {
+      border-color: rgba(255, 224, 122, 0.95);
+      box-shadow: 0 10px 34px -6px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.3), 0 0 24px 5px rgba(255,224,122,0.55);
+    }
+  }
   .widget-prompt-body { display: flex; align-items: center; gap: 12px; flex: 1; cursor: pointer; }
-  .widget-prompt-title { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: #EAF6FF; }
-  .widget-prompt-sub { font-family: 'Inter', sans-serif; font-size: 11.5px; color: #8FA6B8; margin-top: 2px; }
+  .widget-prompt-title { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: #FFF3DC; }
+  .widget-prompt-sub { font-family: 'Inter', sans-serif; font-size: 11.5px; color: #C9AD72; margin-top: 2px; }
   .widget-prompt-close {
     flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer;
-    background: rgba(255,255,255,0.08); color: #8FA6B8; font-size: 13px; line-height: 1;
+    background: rgba(255,255,255,0.08); color: #C9AD72; font-size: 13px; line-height: 1;
   }
   /* Καλλιγραφικές "πινελιές" — χειροποίητη επέκταση γραμμής πάνω στο Κ/κ (διαγώνιο πόδι πιο μακρύ)
      και στο Λ/λ (μπροστινή/δεξιά γραμμή πιο μακριά προς τα κάτω), σαν πραγματική πένα.
