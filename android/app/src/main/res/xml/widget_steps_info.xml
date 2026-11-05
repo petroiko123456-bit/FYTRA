@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11, redesign ζητήθηκε ρητά): μεταδεδομένα του home-screen widget βημάτων.
+     ΔΙΟΡΘΩΣΗ (bug report, "πολύ περιθώριο πάνω/κάτω"): targetCellHeight 2 -> 1 και minHeight 110dp -> 96dp.
+     ΔΙΟΡΘΩΣΗ 2 (5/11, "το κουμπί Open App βγαίνει εκτός ορίων/κομμένο"): μετά η προσθήκη της νέας κάτω
+     σειράς με το κουμπί "Open App" χρειάζεται ΠΑΛΙ λίγο παραπάνω ύψος απ' όσο ζητούσαμε (96dp ήταν αρκετό
+     ΜΟΝΟ για τις 2 προηγούμενες σειρές, όχι για 3) -> minHeight 96dp -> 128dp, targetCellHeight 1 -> 2, ώστε
+     ο launcher να δώσει εξαρχής αρκετό ύψος κελιού και η νέα σειρά να χωράει μέσα στα ορατά όρια του widget,
+     όχι κομμένη/εκτός. Η πραγματική ύψος-ανά-κελί τιμή διαφέρει ανά συσκευή/launcher (π.χ. Samsung One UI
+     συχνά δίνει πιο ψηλά κελιά από το "επίσημο" τυπικό), οπότε αυτό βελτιώνει αλλά δεν εγγυάται πλήρως το
+     ίδιο σε όλες τις συσκευές· resizeMode παραμένει ανοιχτό ώστε ο χρήστης να μπορεί ΑΚΟΜΑ να το προσαρμόσει
+     χειροκίνητα αν χρειαστεί. ΣΗΜΑΝΤΙΚΟ: ένα widget που είναι ΗΔΗ τοποθετημένο στην αρχική οθόνη συχνά ΔΕΝ
+     ξαναδιαβάζει αυτό το minHeight/targetCellHeight αυτόματα μετά από ένα update της εφαρμογής, μπορεί να
+     χρειαστεί να το αφαιρέσει ο χρήστης από την αρχική οθόνη και να το ξανα-προσθέσει, για να πάρει το νέο,
+     μεγαλύτερο μέγεθος κελιού. updatePeriodMillis=1800000 (30 λεπτά) -> ελάχιστο αξιόπιστο διάστημα που επιτρέπει το ίδιο το
+     Android (τιμές κάτω από ~30' αγνοούνται από το OS), λειτουργεί ως εφεδρική/περιοδική ανανέωση· η
+     ΖΩΝΤΑΝΗ ανανέωση γίνεται απευθείας είτε από το JS (FytraStepEngine.updateWidgetNative) όσο η εφαρμογή
+     είναι ανοιχτή, είτε απευθείας από το native side (FytraStepCounterPlugin.creditOneStep) ΑΚΟΜΑ κι όταν
+     η εφαρμογή είναι εντελώς κλειστή, όσο τρέχει το Foreground Service. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="128dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_steps"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_steps_description">
+</appwidget-provider>
