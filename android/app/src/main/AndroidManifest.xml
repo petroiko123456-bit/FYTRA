@@ -61,6 +61,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- ΝΕΟ (5/11, ζητήθηκε ρητά): home-screen widget βημάτων. Βλ. FytraStepsWidgetProvider.kt +
+             FytraStepCounterPlugin.updateWidgetData(), διαβάζει ΜΟΝΟ το δικό του, ξεχωριστό
+             "display cache" SharedPreferences αρχείο, καμία επίδραση στο God Mode/v1/v2 filter. -->
+        <receiver
+            android:name="com.fytra.app.FytraStepsWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_steps_info" />
+        </receiver>
+
         <!-- ΝΕΟ (31/10, ζητήθηκε ρητά): AdMob App ID -> απαιτείται από το @capacitor-community/admob plugin
              ΑΚΟΜΑ κι όταν δεν έχει τρέξει καμία διαφήμιση ακόμα (αλλιώς crash στο initialize()). Αυτό είναι
              το ΕΠΙΣΗΜΟ δημόσιο TEST App ID της Google (ca-app-pub-3940256099942544~3347511713, τεκμηριωμένο
