@@ -63,12 +63,16 @@
 
         <!-- ΝΕΟ (5/11, ζητήθηκε ρητά): home-screen widget βημάτων. Βλ. FytraStepsWidgetProvider.kt +
              FytraStepCounterPlugin.updateWidgetData(), διαβάζει ΜΟΝΟ το δικό του, ξεχωριστό
-             "display cache" SharedPreferences αρχείο, καμία επίδραση στο God Mode/v1/v2 filter. -->
+             "display cache" SharedPreferences αρχείο, καμία επίδραση στο God Mode/v1/v2 filter.
+             ΝΕΟ (redesign, θέματα widget): προστέθηκε και το ACTION_CYCLE_WIDGET_THEME, το custom
+             broadcast που στέλνει το ίδιο το κουμπί παλέτας πάνω στο widget (βλ.
+             FytraStepsWidgetProvider.ACTION_CYCLE_THEME), ΔΕΝ ανοίγει την εφαρμογή. -->
         <receiver
             android:name="com.fytra.app.FytraStepsWidgetProvider"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.fytra.app.ACTION_CYCLE_WIDGET_THEME" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
