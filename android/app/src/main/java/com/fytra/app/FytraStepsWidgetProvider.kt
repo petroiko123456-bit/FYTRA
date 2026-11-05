@@ -41,6 +41,15 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         const val KEY_WIDGET_KCAL = "widgetKcal"
         const val KEY_WIDGET_KM = "widgetKm"
         const val KEY_WIDGET_UPDATED_TS = "widgetUpdatedTs"
+        // ΝΕΟ (ΔΙΟΡΘΩΣΗ BUG, "μηδενίζει το widget μόλις ανοίξει η εφαρμογή"): ημερολογιακό κλειδί (yyyy-MM-dd)
+        // της μέρας στην οποία ανήκει το τελευταίο αποθηκευμένο KEY_WIDGET_STEPS. Χρησιμοποιείται από το
+        // FytraStepCounterPlugin (βλ. writeWidgetDisplayCacheGuarded) ώστε, ΜΕΣΑ στην ΙΔΙΑ μέρα, μια νέα
+        // τιμή βημάτων να ΜΗΝ επιτρέπεται ποτέ να είναι ΜΙΚΡΟΤΕΡΗ από την ήδη αποθηκευμένη -- ίδιο ακριβώς
+        // πνεύμα με το "ΠΟΤΕ δεν μειώνει" self-heal που υπάρχει ήδη στο index.html. Διορθώνει ένα race: όταν
+        // ανοίγει η εφαρμογή, το ΠΡΩΤΟ renderSteps() τρέχει ΠΡΙΝ ολοκληρωθεί η ανάκτηση βημάτων κλειστής
+        // εφαρμογής (checkClosedAppSteps, async) -> χωρίς αυτό το guard, θα έγραφε προσωρινά ένα χαμηλότερο/
+        // μηδενικό νούμερο πάνω στο ήδη σωστό που είχε ήδη γράψει το native creditOneStep() ενώ ήταν κλειστή.
+        const val KEY_WIDGET_DAYKEY = "widgetDayKey"
         // ΝΕΟ (live update όσο η εφαρμογή είναι ΕΝΤΕΛΩΣ κλειστή, βλ. FytraStepCounterPlugin.creditOneStep):
         // ο εξατομικευμένος διασκελισμός του χρήστη (STEP_LENGTH_M στο index.html), cache-αρισμένος εδώ από
         // το updateWidgetData() ΚΑΘΕ φορά που το JS είναι ζωντανό, ώστε το native side να μπορεί να
@@ -96,10 +105,18 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                 val mgr = AppWidgetManager.getInstance(context)
                 val ids = mgr.getAppWidgetIds(android.content.ComponentName(context, FytraStepsWidgetProvider::class.java))
                 if (ids.isNotEmpty()) {
-                    val intent = Intent(context, FytraStepsWidgetProvider::class.java)
-                    intent.action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                    context.sendBroadcast(intent)
+                    // ΔΙΟΡΘΩΣΗ (bug report, "ακόμα δεν ανανεώνεται με κλειστή εφαρμογή"): πριν στελνόταν ένα
+                    // ACTION_APPWIDGET_UPDATE broadcast στον εαυτό μας και περιμέναμε το onUpdate() να το
+                    // πιάσει -- ένα έμμεσο, ένα-βήμα-παραπάνω μονοπάτι που σε κάποιες OEM συσκευές (π.χ.
+                    // Samsung One UI) μπορεί να καθυστερήσει ή να "χαθεί" όσο η εφαρμογή είναι βαθιά στο
+                    // παρασκήνιο, ακόμα κι όταν στέλνεται με applicationContext. ΤΩΡΑ καλούμε απευθείας
+                    // appWidgetManager.updateAppWidget() με τα ήδη έτοιμα RemoteViews -- το ΙΔΙΟ, επίσημα
+                    // συνιστώμενο μονοπάτι που χρησιμοποιεί ήδη το onUpdate() παρακάτω, απλά χωρίς το
+                    // ενδιάμεσο broadcast hop. Καμία επίδραση στο God Mode/v1/v2 filter.
+                    val views = buildRemoteViews(context)
+                    for (id in ids) {
+                        mgr.updateAppWidget(id, views)
+                    }
                 }
             } catch (e: Exception) { /* μη κρίσιμο -- το widget απλά δεν ανανεώθηκε αυτή τη φορά */ }
         }
@@ -182,9 +199,10 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             // -------- δακτύλιος προόδου --------
             val goalReached = goal > 0 && steps >= goal
             val progressFraction = if (goal > 0) steps.toFloat() / goal.toFloat() else 0f
-            // 86dp στο layout -> περίπου 2.6x πυκνότητα μέσος όρος, ζωγραφίζουμε σε σταθερά 220px (αρκετά
-            // ευκρινές ακόμα και σε high-density οθόνες, το ImageView το προσαρμόζει στο layout μέγεθος).
-            val ringBitmap = drawProgressRingBitmap(220, 20f, progressFraction, theme)
+            // ΝΕΟ (bug report, "μεγάλωσε ελάχιστα το κυκλικό καντράν"): 94dp στο layout πλέον (πριν 86dp) ->
+            // ζωγραφίζουμε σε σταθερά 240px (πριν 220px, ίδια αναλογία), αρκετά ευκρινές ακόμα και σε
+            // high-density οθόνες -- το ImageView το προσαρμόζει στο layout μέγεθος ούτως ή άλλως.
+            val ringBitmap = drawProgressRingBitmap(240, 21f, progressFraction, theme)
             views.setImageViewBitmap(R.id.widgetRingImage, ringBitmap)
 
             // -------- κάρτα "Στόχος!" --------
