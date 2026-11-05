@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ΝΕΟ (5/11, ζητήθηκε ρητά): μεταδεδομένα του home-screen widget βημάτων. Ένα μέγεθος, μικρό και
-     απλό (κατά προτίμηση του χρήστη) -> ελάχιστο 2x1 κελιά (~110x40dp), με δυνατότητα resize σε
-     πλάτος/ύψος αν ο χρήστης θέλει μεγαλύτερο. updatePeriodMillis=1800000 (30 λεπτά) -> ελάχιστο
-     αξιόπιστο διάστημα που επιτρέπει το ίδιο το Android (τιμές κάτω από ~30' αγνοούνται από το OS),
-     λειτουργεί ως εφεδρική/περιοδική ανανέωση· η ΖΩΝΤΑΝΗ ανανέωση γίνεται απευθείας από την εφαρμογή
-     (FytraStepEngine.updateWidgetNative) κάθε φορά που υπολογίζονται νέα βήματα όσο αυτή είναι ανοιχτή
-     ή τρέχει το Foreground Service στο παρασκήνιο. -->
+<!-- ΝΕΟ (5/11, redesign ζητήθηκε ρητά): μεταδεδομένα του home-screen widget βημάτων. ΑΛΛΑΞΕ το προεπιλεγμένο
+     μέγεθος σε 4x2 κελιά (~250x110dp) ώστε ο νέος, πιο πλούσιος σχεδιασμός (δακτύλιος + 2 κάρτες + κουμπί
+     θέματος) να χωράει ΚΑΝΟΝΙΚΑ από την πρώτη στιγμή -> ο χρήστης ΔΕΝ χρειάζεται να μεγενθύνει το widget
+     χειροκίνητα (ζητήθηκε ρητά). resizeMode παραμένει ανοιχτό ώστε να μπορεί ΑΚΟΜΑ να το μικρύνει/μεγαλώσει
+     αν θέλει. updatePeriodMillis=1800000 (30 λεπτά) -> ελάχιστο αξιόπιστο διάστημα που επιτρέπει το ίδιο το
+     Android (τιμές κάτω από ~30' αγνοούνται από το OS), λειτουργεί ως εφεδρική/περιοδική ανανέωση· η
+     ΖΩΝΤΑΝΗ ανανέωση γίνεται απευθείας είτε από το JS (FytraStepEngine.updateWidgetNative) όσο η εφαρμογή
+     είναι ανοιχτή, είτε απευθείας από το native side (FytraStepCounterPlugin.creditOneStep) ΑΚΟΜΑ κι όταν
+     η εφαρμογή είναι εντελώς κλειστή, όσο τρέχει το Foreground Service. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="110dp"
-    android:minHeight="40dp"
-    android:targetCellWidth="2"
-    android:targetCellHeight="1"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_steps"
     android:resizeMode="horizontal|vertical"
