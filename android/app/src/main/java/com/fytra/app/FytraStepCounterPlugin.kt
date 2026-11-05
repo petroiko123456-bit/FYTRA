@@ -513,6 +513,19 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
     // συχνά ξαναζωγραφίζεται το widget.
     private var lastNativeWidgetPushMs = 0L
     private val NATIVE_WIDGET_PUSH_MIN_INTERVAL_MS = 5000L
+    // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG ("το widget δεν συγχρονίζει πλέον με την εφαρμογή"): το KEY_DAILY_BASELINE_STEPS
+    // (CLOSED_APP_PREFS) ενημερώνεται από το JS σε ΚΑΘΕ βήμα (saveTodayStepsLocalOnly -> saveDailyBaselineNative)
+    // με το ΠΛΗΡΕΣ τρέχον σύνολο (dailyBaseline+steps) -- που ΗΔΗ περιλαμβάνει τα βήματα του τρέχοντος session.
+    // Το pushWidgetUpdateFromNativeCredit() παρακάτω πρόσθετε ΕΠΙΠΛΕΟΝ το internalStepCount (το ΙΔΙΟ raw
+    // πλήθος του session) πάνω σε αυτό -> διπλή μέτρηση όσο η εφαρμογή είναι ανοιχτή. Πριν προστεθεί το
+    // "ΠΟΤΕ δεν μειώνει" guard στο widget cache, αυτό διορθωνόταν αθόρυβα σε ~5" από το επόμενο σωστό JS
+    // push -- αλλά ΤΩΡΑ το guard "κλειδώνει" αυτή τη φουσκωμένη τιμή μόνιμα, μπλοκάροντας κάθε μετέπειτα
+    // σωστό (μικρότερο) JS νούμερο. ΛΥΣΗ: κρατάμε "στιγμιότυπο" του internalStepCount ΤΗ ΣΤΙΓΜΗ που
+    // αποθηκεύεται το baseline (βλ. saveDailyBaselineNative) -> το native push προσθέτει ΜΟΝΟ τη ΔΙΑΦΟΡΑ
+    // (νέα βήματα) από εκείνο το στιγμιότυπο, ΠΟΤΕ ολόκληρο το internalStepCount. Μηδενίζεται μαζί με το
+    // internalStepCount σε κάθε resetAlgorithmState() (νέο session/άνοιγμα εφαρμογής). ΚΑΜΙΑ επίδραση στο
+    // God Mode/v1/v2 -- αμιγώς διόρθωση στον υπολογισμό του widget display cache.
+    private var baselineSnapshotStepCount = 0L
 
     private val MIN_STEP_INTERVAL_MS = 300L
     // ΔΙΟΡΘΩΘΗΚΕ (μετά από πραγματικό test μόνο-περπατήματος): το 850ms ήταν πολύ στενό — αντιστοιχεί σε
@@ -917,6 +930,9 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
         rising = false
         lastPeakTimeMs = 0L
         internalStepCount = 0L
+        // ΝΕΟ (διόρθωση διπλής μέτρησης widget, βλ. πλήρες σχόλιο στη δήλωση baselineSnapshotStepCount
+        // παραπάνω): μηδενίζεται ΜΑΖΙ με το internalStepCount σε κάθε νέο session/άνοιγμα εφαρμογής.
+        baselineSnapshotStepCount = 0L
         algoEventCount = 0L
         pendingPeaks = mutableListOf()
         lastIntervalMs = -1L
@@ -1285,6 +1301,12 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                     .putString(KEY_DAILY_BASELINE_DAYKEY, dayKey)
                     .putInt(KEY_DAILY_BASELINE_STEPS, steps)
                     .commit() // ΣΚΟΠΙΜΑ commit() (συγχρονισμένο), όχι apply() — βλ. πλήρες σχόλιο παραπάνω
+                // ΔΙΟΡΘΩΣΗ ΔΙΠΛΗΣ ΜΕΤΡΗΣΗΣ WIDGET (βλ. πλήρες σχόλιο στη δήλωση baselineSnapshotStepCount):
+                // το "steps" εδώ ΗΔΗ περιλαμβάνει όλα τα βήματα του τρέχοντος session (dailyBaseline+steps
+                // από το JS) — κρατάμε στιγμιότυπο του internalStepCount ΑΥΤΗ τη στιγμή, ώστε το
+                // pushWidgetUpdateFromNativeCredit() να προσθέτει ΜΟΝΟ τα ΝΕΑ βήματα από εδώ και πέρα,
+                // ποτέ ξανά ολόκληρο το session.
+                baselineSnapshotStepCount = internalStepCount
             }
             // ΝΕΟ (ΔΙΑΓΝΩΣΤΙΚΟ — το self-heal στο JS ΔΕΝ ενεργοποιήθηκε ποτέ στο προηγούμενο τεστ, άρα
             // πρέπει να δούμε ρητά αν αυτό το commit() όντως πετυχαίνει): commit() επιστρέφει false αν
@@ -1959,10 +1981,16 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
             val baselineDayKey = closedAppPrefs.getString(KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
             val baselineSteps = closedAppPrefs.getInt(KEY_DAILY_BASELINE_STEPS, 0)
-            // ΙΔΙΟΣ τύπος με αυτόν που ήδη χρησιμοποιεί το JS (dailyBaseline + steps) -- αν το αποθηκευμένο
-            // baseline είναι από ΠΡΟΗΓΟΥΜΕΝΗ μέρα (π.χ. δεν έχει ακόμα τρέξει το μεσονύκτιο rollover), δεν
-            // το προσθέτουμε -- μετράμε ΜΟΝΟ ό,τι πιστώθηκε στο τρέχον session.
-            val totalToday = if (baselineDayKey == todayKey) baselineSteps + internalStepCount else internalStepCount
+            // ΔΙΟΡΘΩΣΗ ΔΙΠΛΗΣ ΜΕΤΡΗΣΗΣ (βλ. πλήρες σχόλιο στη δήλωση baselineSnapshotStepCount): το
+            // baselineSteps ΗΔΗ περιλαμβάνει όλα τα βήματα του session μέχρι το τελευταίο saveDailyBaselineNative
+            // -- προσθέτουμε ΜΟΝΟ τη ΔΙΑΦΟΡΑ (νέα βήματα) από το στιγμιότυπο εκείνης της στιγμής, ΠΟΤΕ
+            // ολόκληρο το internalStepCount (που θα το μέτραγε ΔΙΠΛΑ). Αν baselineSnapshotStepCount >
+            // internalStepCount (π.χ. μόλις ξεκίνησε νέο session πριν προλάβει κανένα saveDailyBaselineNative),
+            // η διαφορά clamp-άρεται σε 0 -- ασφαλές, το JS θα το συγχρονίσει σωστά μέσα σε δευτερόλεπτα όπως
+            // και πριν. Αν το αποθηκευμένο baseline είναι από ΠΡΟΗΓΟΥΜΕΝΗ μέρα (π.χ. δεν έχει ακόμα τρέξει το
+            // μεσονύκτιο rollover), δεν το προσθέτουμε -- μετράμε ΜΟΝΟ ό,τι πιστώθηκε στο τρέχον session.
+            val deltaSinceBaseline = (internalStepCount - baselineSnapshotStepCount).coerceAtLeast(0L)
+            val totalToday = if (baselineDayKey == todayKey) baselineSteps + deltaSinceBaseline else internalStepCount
 
             val widgetPrefs = appCtx.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
             // ΙΔΙΑ σταθερά με το KCAL_PER_STEP στο index.html (0.04) -- μετατροπή, καμία επίδραση στον
