@@ -15,6 +15,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
+        android:gravity="center_vertical"
         android:paddingStart="18dp"
         android:paddingEnd="18dp"
         android:paddingTop="14dp"
@@ -133,11 +134,16 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ================= MAIN ROW: δακτύλιος + κάρτες kcal/km ================= -->
+        <!-- ================= MAIN ROW: δακτύλιος + κάρτες kcal/km =================
+             ΔΙΟΡΘΩΣΗ (bug report 5/11, "ισοπεδώθηκε/δεν μετράει σε Samsung"): layout_height="0dp" +
+             layout_weight="1" για ΥΨΟΣ μέσα σε RemoteViews (home-screen widget) είναι γνωστό ότι
+             αποδίδεται ασταθές σε αρκετούς OEM launchers (π.χ. One UI), σε αντίθεση με weight σε
+             ΠΛΑΤΟΣ (π.χ. η κάρτα "Στόχος!" παρακάτω), που είναι πολύ πιο αξιόπιστο. Αλλάζει σε
+             wrap_content -> το ύψος της σειράς καθορίζεται πλέον από το ΙΔΙΟ το περιεχόμενο (ο
+             δακτύλιος έχει σταθερό μέγεθος 86dp), όχι από flexible fill, άρα δεν μπορεί να "καταρρεύσει". -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:orientation="horizontal"
             android:gravity="center_vertical">
