@@ -507,6 +507,13 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
     private var algoEventCount = 0L
     private var usingVerticalProjection = false
 
+    // ΝΕΟ (5/11, ζητήθηκε ρητά — "το widget να ανανεώνεται ζωντανά ΑΚΟΜΑ κι όταν η εφαρμογή είναι ΕΝΤΕΛΩΣ
+    // κλειστή"): throttle ΜΟΝΟ για το push προς το widget (ίδιο 5-δευτερόλεπτο κατώφλι με το JS-side
+    // throttle στο index.html/renderSteps) -- ΔΕΝ επηρεάζει καθόλου το πότε πιστώνεται ένα βήμα, μόνο πόσο
+    // συχνά ξαναζωγραφίζεται το widget.
+    private var lastNativeWidgetPushMs = 0L
+    private val NATIVE_WIDGET_PUSH_MIN_INTERVAL_MS = 5000L
+
     private val MIN_STEP_INTERVAL_MS = 300L
     // ΔΙΟΡΘΩΘΗΚΕ (μετά από πραγματικό test μόνο-περπατήματος): το 850ms ήταν πολύ στενό — αντιστοιχεί σε
     // ρυθμό πάνω από ~70 βήματα/λεπτό, οπότε ΟΠΟΙΟΔΗΠΟΤΕ πιο χαλαρό/αργό βήμα (πολύ συνηθισμένο,
@@ -1324,18 +1331,64 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             val stepsVal = call.getInt("steps") ?: 0
             val kcalVal = call.getInt("kcal") ?: 0
             val kmVal = call.getDouble("km") ?: 0.0
+            // ΝΕΟ: ο εξατομικευμένος διασκελισμός (βλ. KEY_WIDGET_STRIDE_M στο FytraStepsWidgetProvider.kt) —
+            // αποθηκεύεται ΜΟΝΟ ως cache για να τον χρησιμοποιεί η creditOneStep() παρακάτω όταν δεν υπάρχει
+            // καθόλου ζωντανό JS. Αν δεν σταλεί (παλιότερο JS), κρατάμε ό,τι ήδη είχε αποθηκευτεί.
+            val strideVal = call.getDouble("strideM")
+            val goalVal = call.getInt("goal")
             val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            prefs.edit()
+            val editor = prefs.edit()
                 .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, stepsVal)
                 .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, kcalVal)
                 .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
                 .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
-                .apply()
+            if (strideVal != null && strideVal > 0.0) {
+                editor.putFloat(FytraStepsWidgetProvider.KEY_WIDGET_STRIDE_M, strideVal.toFloat())
+            }
+            if (goalVal != null && goalVal > 0) {
+                editor.putInt(FytraStepsWidgetProvider.KEY_WIDGET_GOAL, goalVal)
+            }
+            editor.apply()
             FytraStepsWidgetProvider.requestWidgetUpdate(context)
             call.resolve()
         } catch (e: Exception) {
             Log.d(TAG, "updateWidgetData ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
             try { call.resolve() } catch (e2: Exception) {}
+        }
+    }
+
+    // ============================================================================================
+    // ΝΕΟ (5/11, θέματα widget — ζητήθηκε ρητά): επιλογή θέματος χρώματος για το widget ΜΕΣΑ από την
+    // εφαρμογή (εναλλακτικά στο κύκλωμα θεμάτων πατώντας το κουμπί παλέτας πάνω στο ίδιο το widget, βλ.
+    // FytraStepsWidgetProvider.onReceive/ACTION_CYCLE_THEME). Αποθηκεύει ΜΟΝΟ έναν δείκτη (0-5) στο ίδιο
+    // "display cache" SharedPreferences αρχείο — καμία επίδραση σε τίποτα άλλο.
+    // ============================================================================================
+    @PluginMethod
+    fun setWidgetTheme(call: PluginCall) {
+        try {
+            val raw = call.getInt("themeIndex") ?: 0
+            val clamped = if (raw in 0 until FytraStepsWidgetProvider.THEME_COUNT) raw else 0
+            val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            prefs.edit().putInt(FytraStepsWidgetProvider.KEY_WIDGET_THEME_INDEX, clamped).apply()
+            FytraStepsWidgetProvider.requestWidgetUpdate(context)
+            call.resolve()
+        } catch (e: Exception) {
+            Log.d(TAG, "setWidgetTheme ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+            try { call.resolve() } catch (e2: Exception) {}
+        }
+    }
+
+    // Διαβάζει πίσω τον τρέχοντα δείκτη θέματος (χρησιμοποιείται από το JS για να δείξει ποιο θέμα είναι
+    // ήδη επιλεγμένο όταν ανοίγει ο selector μέσα στην εφαρμογή).
+    @PluginMethod
+    fun getWidgetTheme(call: PluginCall) {
+        try {
+            val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val ret = JSObject()
+            ret.put("themeIndex", prefs.getInt(FytraStepsWidgetProvider.KEY_WIDGET_THEME_INDEX, 0))
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("getWidgetTheme crashed: " + e.javaClass.simpleName + ": " + e.message)
         }
     }
 
@@ -1872,6 +1925,49 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             val elapsedSec = (System.currentTimeMillis() - v2SessionStartTimeMs) / 1000.0
             Log.d(TAG, "creditOneStep: βήμα #" + internalStepCount + " t=" + String.format("%.1f", elapsedSec) + "s (events επεξεργασμένα=" + algoEventCount + ")")
         }
+        // ΝΕΟ (5/11, ζητήθηκε ρητά): ανανεώνει το widget ΑΠΕΥΘΕΙΑΣ από εδώ, ανεξάρτητα από το αν υπάρχει
+        // ζωντανό JS/WebView να ακούσει το notifyListeners() παραπάνω -> το creditOneStep() καλείται για
+        // ΚΑΘΕ πιστωμένο βήμα, είτε η εφαρμογή είναι ανοιχτή είτε ΕΝΤΕΛΩΣ κλειστή, αφού ο ίδιος ο
+        // αλγόριθμος/God Mode τρέχει ήδη ανεξάρτητα μέσα στο FytraStepForegroundService. ΔΕΝ διαβάζει,
+        // ΔΕΝ αλλάζει και ΔΕΝ αγγίζει ΤΙΠΟΤΑ από το ήδη εγκεκριμένο βήμα/αλγόριθμο — απλά ΔΙΑΒΑΖΕΙ το ΗΔΗ
+        // υπολογισμένο αποτέλεσμα (internalStepCount, ίδιο ΑΚΡΙΒΩΣ πεδίο με το data.put παραπάνω) και το
+        // γράφει στο ΙΔΙΟ "display cache" SharedPreferences που ήδη γεμίζει το updateWidgetData() από το JS.
+        pushWidgetUpdateFromNativeCredit()
+    }
+
+    private fun pushWidgetUpdateFromNativeCredit() {
+        try {
+            val now = System.currentTimeMillis()
+            if (now - lastNativeWidgetPushMs < NATIVE_WIDGET_PUSH_MIN_INTERVAL_MS) return
+            lastNativeWidgetPushMs = now
+
+            val closedAppPrefs = context.getSharedPreferences(CLOSED_APP_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            val baselineDayKey = closedAppPrefs.getString(KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
+            val baselineSteps = closedAppPrefs.getInt(KEY_DAILY_BASELINE_STEPS, 0)
+            // ΙΔΙΟΣ τύπος με αυτόν που ήδη χρησιμοποιεί το JS (dailyBaseline + steps) -- αν το αποθηκευμένο
+            // baseline είναι από ΠΡΟΗΓΟΥΜΕΝΗ μέρα (π.χ. δεν έχει ακόμα τρέξει το μεσονύκτιο rollover), δεν
+            // το προσθέτουμε -- μετράμε ΜΟΝΟ ό,τι πιστώθηκε στο τρέχον session.
+            val totalToday = if (baselineDayKey == todayKey) baselineSteps + internalStepCount else internalStepCount
+
+            val widgetPrefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            // ΙΔΙΑ σταθερά με το KCAL_PER_STEP στο index.html (0.04) -- μετατροπή, καμία επίδραση στον
+            // μετρητή βημάτων. Για km χρησιμοποιούμε τον τελευταίο γνωστό, εξατομικευμένο διασκελισμό που
+            // έστειλε το JS (βλ. KEY_WIDGET_STRIDE_M) -- fallback στο προεπιλεγμένο 0.75m αν δεν έχει σταλεί
+            // ποτέ ακόμα (π.χ. πρώτη εγκατάσταση πριν ανοίξει ποτέ η εφαρμογή).
+            val strideM = widgetPrefs.getFloat(FytraStepsWidgetProvider.KEY_WIDGET_STRIDE_M, 0.75f)
+            val kcalVal = Math.round(totalToday * 0.04).toInt()
+            val kmVal = (totalToday * strideM) / 1000.0
+            // ΣΗΜΕΙΩΣΗ: ΔΕΝ γράφουμε εδώ το KEY_WIDGET_GOAL -- αυτό ενημερώνεται ΜΟΝΟ από το JS
+            // (updateWidgetData όταν υπάρχει ζωντανό WebView), το native side απλά το διαβάζει.
+            widgetPrefs.edit()
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, totalToday.toInt())
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, kcalVal)
+                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
+                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, now)
+                .apply()
+            FytraStepsWidgetProvider.requestWidgetUpdate(context)
+        } catch (e: Exception) { /* μη κρίσιμο -- το widget απλά δεν ανανεώθηκε αυτή τη φορά */ }
     }
 
     // ============================================================================
