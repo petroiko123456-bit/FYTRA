@@ -6030,6 +6030,28 @@
     animation: antechamberCaretBlink 0.8s step-end infinite;
   }
   @keyframes antechamberCaretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  /* ΝΕΟ (5/11, ζητήθηκε ρητά): banner πρότασης δημιουργίας widget — fixed στο κάτω μέρος της οθόνης,
+     πάνω από όλο το υπόλοιπο περιεχόμενο, εμφανίζεται/κρύβεται μέσω της κλάσης .show (ίδιο πρότυπο
+     opacity+pointer-events με το welcome-antechamber παραπάνω, ώστε να γίνεται ομαλό fade). */
+  .widget-prompt-banner {
+    position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 180;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, #16202B 0%, #0E161E 100%);
+    border: 1px solid rgba(77, 232, 255, 0.35);
+    border-radius: 16px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 30px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.3);
+    opacity: 0; transform: translateY(12px); pointer-events: none;
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  .widget-prompt-banner.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .widget-prompt-body { display: flex; align-items: center; gap: 12px; flex: 1; cursor: pointer; }
+  .widget-prompt-title { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: #EAF6FF; }
+  .widget-prompt-sub { font-family: 'Inter', sans-serif; font-size: 11.5px; color: #8FA6B8; margin-top: 2px; }
+  .widget-prompt-close {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(255,255,255,0.08); color: #8FA6B8; font-size: 13px; line-height: 1;
+  }
   /* Καλλιγραφικές "πινελιές" — χειροποίητη επέκταση γραμμής πάνω στο Κ/κ (διαγώνιο πόδι πιο μακρύ)
      και στο Λ/λ (μπροστινή/δεξιά γραμμή πιο μακριά προς τα κάτω), σαν πραγματική πένα.
      ΣΗΜΑΝΤΙΚΟ: το position:relative σε inline στοιχείο "σπάει" το background-clip:text του γονικού
@@ -6169,6 +6191,21 @@
 
 <div class="welcome-antechamber" id="welcomeAntechamber">
   <div class="welcome-antechamber-text" id="welcomeAntechamberText"></div>
+</div>
+
+<!-- ΝΕΟ (5/11, ζητήθηκε ρητά): banner που ρωτάει τον χρήστη αν θέλει να δημιουργήσει το widget βημάτων.
+     Εμφανίζεται ΜΟΝΙΜΑ (σε κάθε είσοδο στην εφαρμογή) εκτός αν πατήσει το Χ -> τότε δεν ξαναεμφανίζεται
+     ποτέ (βλ. initWidgetPromptBanner στο JS). Πατώντας στο κυρίως σώμα (όχι στο Χ) δημιουργεί το widget
+     με το ίδιο requestPinWidget() flow με το κουμπί στο tab Βήματα. -->
+<div class="widget-prompt-banner" id="widgetPromptBanner">
+  <button type="button" class="widget-prompt-close" id="widgetPromptClose" aria-label="Κλείσιμο">✕</button>
+  <div class="widget-prompt-body" id="widgetPromptBody">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#4DE8FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="26" height="26" style="flex-shrink:0;"><rect x="3" y="3" width="8" height="8" rx="2"></rect><rect x="13" y="3" width="8" height="8" rx="2"></rect><rect x="3" y="13" width="8" height="8" rx="2"></rect><rect x="13" y="13" width="8" height="8" rx="2"></rect></svg>
+    <div class="widget-prompt-text">
+      <div class="widget-prompt-title">Θέλεις το widget βημάτων στην αρχική οθόνη;</div>
+      <div class="widget-prompt-sub">Πάτησε εδώ για να το προσθέσεις με ένα κλικ</div>
+    </div>
+  </div>
 </div>
 
 <div class="welcome-gate" id="welcomeGate">
@@ -6762,6 +6799,14 @@
         </span>
       </button>
       <div class="uinfo-source" id="addWidgetStatus" style="margin-top:8px; display:none;"></div>
+      <!-- ΝΕΟ (5/11, θέματα widget — ζητήθηκε ρητά): επιλογή χρώματος/θέματος του widget. Εναλλακτικά, ο
+           χρήστης μπορεί να αλλάξει θέμα και πατώντας απευθείας το κουμπί παλέτας πάνω στο ίδιο το widget
+           (βλ. FytraStepsWidgetProvider.ACTION_CYCLE_THEME) -- τα δύο μένουν πάντα συγχρονισμένα, αφού
+           διαβάζουν/γράφουν το ΙΔΙΟ κλειδί (KEY_WIDGET_THEME_INDEX). -->
+      <div style="margin-top:12px;">
+        <div class="uinfo-source" style="border-top:none; padding-top:0; margin-bottom:8px;">Θέμα widget</div>
+        <div id="widgetThemeSwatches" style="display:flex; gap:10px;"></div>
+      </div>
     </div>
     <div class="daily-log-wrap uinfo-wrap">
       <div class="uinfo-btn" id="uinfoBtn">
@@ -13336,13 +13381,22 @@
     // υπολογισμού, άρα το widget είναι ΠΑΝΤΑ 100% συγχρονισμένο με την εφαρμογή, ποτέ δεν μπορεί να
     // αποκλίνει. Fire-and-forget, ποτέ δεν πετάει exception προς τα έξω — αν αποτύχει, απλά το widget
     // δεν ανανεώνεται αυτή τη φορά (θα ξαναδοκιμάσει στο επόμενο renderSteps()).
-    async function updateWidgetNative(totalSteps, kcal, km) {
+    async function updateWidgetNative(totalSteps, kcal, km, strideM, goal) {
       try {
         if (!detectPlugin()) return;
         await nativePlugin.updateWidgetData({
           steps: Math.round(totalSteps),
           kcal: Math.round(kcal),
-          km: Number(km)
+          km: Number(km),
+          // ΝΕΟ (live widget update όσο η εφαρμογή είναι ΕΝΤΕΛΩΣ κλειστή): ο εξατομικευμένος διασκελισμός
+          // (βλ. STEP_LENGTH_M) ΔΕΝ ήταν ποτέ διαθέσιμος στο native side -> χωρίς αυτόν, τα βήματα που
+          // πιστώνονται φυσικά (creditOneStep στο FytraStepCounterPlugin.kt) ενώ δεν τρέχει καθόλου JS δεν
+          // μπορούσαν να μετατραπούν σε km για το widget. Το στέλνουμε εδώ ΜΟΝΟ ως cache -> το native ΔΕΝ
+          // αλλάζει/υπολογίζει το ίδιο το STEP_LENGTH_M, απλά το διαβάζει πίσω όταν χρειαστεί.
+          strideM: Number(strideM),
+          // ΝΕΟ: ο προσωπικός στόχος (GOAL) -> χρειάζεται στο native side για να υπολογίσει το ποσοστό του
+          // δακτυλίου (και να ανιχνεύσει "πιάστηκε ο στόχος") ΧΩΡΙΣ κανένα ζωντανό JS.
+          goal: Number(goal)
         });
       } catch (e) { /* μη κρίσιμο — το widget απλά δεν ανανεώθηκε αυτή τη φορά */ }
     }
@@ -13360,7 +13414,25 @@
       } catch (e) { return { supported: false, requested: false }; }
     }
 
-    return { startStepTracking, stopStepTracking, getCurrentNativeSteps, onNativeStepUpdate, getStepSourceStatus, getSnapshot, checkClosedAppSteps, getDailyStepSnapshots, getAndClearPendingNativeSteps, requestNotificationPermission, logReconcileShadow, logHwCredit, saveDailyBaselineNative, loadDailyBaselineNative, updateWidgetNative, requestPinWidget, SensorState, WalkingState };
+    // ΝΕΟ (5/11, θέματα widget — ζητήθηκε ρητά): επιλογή θέματος χρώματος για το widget μέσα από την
+    // εφαρμογή. ΔΕΝ υπολογίζει/αλλάζει τίποτα σχετικό με βήματα -- απλά περνάει έναν δείκτη (0-5) στο
+    // native side (βλ. FytraStepCounterPlugin.setWidgetTheme/getWidgetTheme).
+    async function setWidgetTheme(themeIndex) {
+      try {
+        if (!detectPlugin()) return false;
+        await nativePlugin.setWidgetTheme({ themeIndex: Math.round(themeIndex) });
+        return true;
+      } catch (e) { return false; }
+    }
+    async function getWidgetTheme() {
+      try {
+        if (!detectPlugin()) return 0;
+        const res = await nativePlugin.getWidgetTheme();
+        return (res && typeof res.themeIndex === 'number') ? res.themeIndex : 0;
+      } catch (e) { return 0; }
+    }
+
+    return { startStepTracking, stopStepTracking, getCurrentNativeSteps, onNativeStepUpdate, getStepSourceStatus, getSnapshot, checkClosedAppSteps, getDailyStepSnapshots, getAndClearPendingNativeSteps, requestNotificationPermission, logReconcileShadow, logHwCredit, saveDailyBaselineNative, loadDailyBaselineNative, updateWidgetNative, requestPinWidget, setWidgetTheme, getWidgetTheme, SensorState, WalkingState };
   })();
 
   // Fake generator: ΜΟΝΟ development-only mechanism (ρητό URL param ή localStorage flag), ΠΟΤΕ αυτόματο
@@ -14545,6 +14617,91 @@
       }
     });
   }
+  // ΝΕΟ (5/11, ζητήθηκε ρητά): banner πρότασης δημιουργίας widget — εμφανίζεται ΜΟΝΙΜΑ σε κάθε είσοδο
+  // στην εφαρμογή, εκτός αν ο χρήστης πατήσει το Χ (τότε sset('befit:widgetPromptDismissed', true) ->
+  // ΔΕΝ ξαναεμφανίζεται ποτέ ξανά). Πατώντας στο κυρίως σώμα (όχι στο Χ) τρέχει το ΙΔΙΟ requestPinWidget()
+  // flow με το κουμπί στο tab Βήματα, και μετά από επιτυχημένο αίτημα το κρύβει κι αυτό μόνιμα (δεν έχει
+  // νόημα να συνεχίσει να ρωτάει αφού ο χρήστης ήδη απάντησε "ναι").
+  async function maybeShowWidgetPromptBanner() {
+    const banner = document.getElementById('widgetPromptBanner');
+    if (!banner) return;
+    const dismissed = await sget('befit:widgetPromptDismissed');
+    if (dismissed) return;
+    banner.classList.add('show');
+  }
+  const widgetPromptClose = document.getElementById('widgetPromptClose');
+  if (widgetPromptClose) {
+    widgetPromptClose.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const banner = document.getElementById('widgetPromptBanner');
+      if (banner) banner.classList.remove('show');
+      try { await sset('befit:widgetPromptDismissed', true); } catch (err) {}
+    });
+  }
+  const widgetPromptBody = document.getElementById('widgetPromptBody');
+  if (widgetPromptBody) {
+    widgetPromptBody.addEventListener('click', async () => {
+      const banner = document.getElementById('widgetPromptBanner');
+      let res = { supported: false, requested: false };
+      try {
+        if (typeof FytraStepEngine !== 'undefined' && FytraStepEngine.requestPinWidget) {
+          res = await FytraStepEngine.requestPinWidget();
+        }
+      } catch (err) {}
+      if (res.supported && res.requested) {
+        if (banner) banner.classList.remove('show');
+        try { await sset('befit:widgetPromptDismissed', true); } catch (err) {}
+      }
+      // Αν δεν υποστηρίζεται/δεν ολοκληρώθηκε, αφήνουμε το banner ορατό -> ο χρήστης μπορεί να ξαναδοκιμάσει
+      // ή να το κλείσει μόνος του με το Χ.
+    });
+  }
+  // ΝΕΟ (5/11, θέματα widget — ζητήθηκε ρητά): δημιουργεί 6 χρωματιστά "swatches" (Χρυσό/Ocean/Emerald/
+  // Crimson/Violet/Orange — ΙΔΙΑ σειρά/χρώματα με τα θέματα στο FytraStepsWidgetProvider.kt), φορτώνει
+  // το τρέχον επιλεγμένο θέμα για να δείξει ποιο είναι ήδη ενεργό, και στέλνει την επιλογή στο native
+  // side. ΔΕΝ αγγίζει τίποτα σχετικό με μέτρηση βημάτων.
+  (function initWidgetThemeSwatches() {
+    const wrap = document.getElementById('widgetThemeSwatches');
+    if (!wrap) return;
+    const THEMES = [
+      { name: 'Χρυσό', color: '#FFE07A' },
+      { name: 'Ocean', color: '#7FD8FF' },
+      { name: 'Emerald', color: '#8AFFC4' },
+      { name: 'Crimson', color: '#FF8FA3' },
+      { name: 'Violet', color: '#C9A3FF' },
+      { name: 'Orange', color: '#FFB15C' }
+    ];
+    let activeIdx = 0;
+    function paintSelection() {
+      Array.prototype.forEach.call(wrap.children, (el, i) => {
+        el.style.boxShadow = (i === activeIdx) ? ('0 0 0 2px #0c0f14, 0 0 0 4px ' + THEMES[i].color) : 'none';
+        el.style.transform = (i === activeIdx) ? 'scale(1.08)' : 'scale(1)';
+      });
+    }
+    THEMES.forEach((t, i) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.title = t.name;
+      sw.style.cssText = 'width:28px; height:28px; border-radius:50%; border:none; cursor:pointer; background:' + t.color + '; transition:transform .15s ease;';
+      sw.addEventListener('click', async () => {
+        activeIdx = i;
+        paintSelection();
+        if (typeof FytraStepEngine !== 'undefined' && FytraStepEngine.setWidgetTheme) {
+          await FytraStepEngine.setWidgetTheme(i);
+        }
+      });
+      wrap.appendChild(sw);
+    });
+    paintSelection();
+    (async () => {
+      try {
+        if (typeof FytraStepEngine !== 'undefined' && FytraStepEngine.getWidgetTheme) {
+          activeIdx = await FytraStepEngine.getWidgetTheme();
+          paintSelection();
+        }
+      } catch (e) {}
+    })();
+  })();
   // ΝΕΟ: "Άλλαξε τον ημερήσιο στόχο νερού" -> ίδιο open/close pattern με το stepGoalBtn, με επιλογή
   // μονάδας ml/Λίτρα. ΔΕΝ αγγίζει/καθαρίζει ποτέ water.entries/water.schedule (σε αντίθεση με το
   // παλιό, "ποτήρια"-based #waterRebuildBtn) -> αλλάζει ΜΟΝΟ το water.goalMl, διατηρώντας την
@@ -17354,7 +17511,7 @@ const ASSET_TG_RUN_VIDEO = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc2
     if (nowForWidget - widgetPushLastTs >= WIDGET_PUSH_MIN_INTERVAL_MS) {
       widgetPushLastTs = nowForWidget;
       if (typeof FytraStepEngine !== 'undefined' && FytraStepEngine.updateWidgetNative) {
-        FytraStepEngine.updateWidgetNative(total, total*KCAL_PER_STEP, (total*STEP_LENGTH_M)/1000);
+        FytraStepEngine.updateWidgetNative(total, total*KCAL_PER_STEP, (total*STEP_LENGTH_M)/1000, STEP_LENGTH_M, GOAL);
       }
     }
     // ΝΕΟ: μαγική γιορτή κομφετί μόλις επιτευχθεί ο ημερήσιος στόχος — ΜΙΑ φορά τη μέρα
@@ -31415,6 +31572,9 @@ EMBLEM_LIGHTBOX_SRC.fwmythic = 'data:image/webp;base64,UklGRv7/AQBXRUJQVlA4WAoAA
       showWelcomeAntechamber(pendingWelcomeNickname);
       pendingWelcomeNickname = null;
     }
+    // ΝΕΟ (5/11, ζητήθηκε ρητά): προτείνει τη δημιουργία του widget βημάτων. ΔΕΝ μπλοκάρει τίποτα -> ίδιο
+    // "fire and forget" πρότυπο με το reconcile steps block παραπάνω.
+    try { maybeShowWidgetPromptBanner(); } catch (e) {}
     if (!myNickname) {
       try { const s = await fbDb.ref('users/' + user.uid + '/profile/nickname').get(); if (s.exists()) myNickname = s.val(); } catch(e) {}
     }
