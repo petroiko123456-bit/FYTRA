@@ -4,4 +4,7 @@
     <string name="title_activity_main">FYTRA</string>
     <string name="package_name">com.fytra.app</string>
     <string name="custom_url_scheme">com.fytra.app</string>
+    <!-- ΝΕΟ (5/11, ζητήθηκε ρητά): περιγραφή του home-screen widget βημάτων, εμφανίζεται στον
+         επιλογέα widgets του Android όταν ο χρήστης κρατάει πατημένο στην αρχική οθόνη. -->
+    <string name="widget_steps_description">Δείχνει τα σημερινά βήματα, kcal και km σου κατευθείαν στην αρχική οθόνη.</string>
 </resources>
