@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (5/11, ζητήθηκε ρητά): layout RemoteViews για το home-screen widget βημάτων. ΑΠΛΟΣ σκοπίμα —
+     τα widgets επιτρέπουν ΜΟΝΟ περιορισμένο σύνολο views (RemoteViews), καμία δική μας CSS/animation
+     λογική από το index.html δεν μπορεί να χρησιμοποιηθεί εδώ. Δείχνει: σημερινά βήματα (μεγάλος
+     αριθμός), kcal + km (μια γραμμή), και μικρό label "FYTRA". Πατώντας οπουδήποτε στο widget ανοίγει
+     η εφαρμογή (βλ. FytraStepsWidgetProvider.kt). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:id="@+id/widgetLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="FYTRA · Βήματα"
+            android:textColor="#B89A5A"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widgetStepsValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="0"
+            android:textColor="#FFE07A"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widgetSubValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="0 kcal · 0,00 km"
+            android:textColor="#E8D9B5"
+            android:textSize="12sp" />
+    </LinearLayout>
+</FrameLayout>
