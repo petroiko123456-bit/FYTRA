@@ -1309,6 +1309,76 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
         }
     }
 
+    // ============================================================================================
+    // ΝΕΟ (5/11, ζητήθηκε ρητά): home-screen WIDGET που δείχνει τα σημερινά βήματα/kcal/km ΧΩΡΙΣ να
+    // ανοίγει η εφαρμογή. Αυτή η μέθοδος ΔΕΝ υπολογίζει ΤΙΠΟΤΑ η ίδια — απλά αποθηκεύει τα ΗΔΗ
+    // υπολογισμένα, τελικά νούμερα που της στέλνει το JS (βλ. FytraStepEngine.updateWidgetNative στο
+    // index.html, καλείται από renderSteps() — ΑΚΡΙΒΩΣ τα ίδια νούμερα που βλέπει ο χρήστης στην οθόνη
+    // του), σε ΔΙΚΟ ΤΗΣ, ξεχωριστό SharedPreferences αρχείο, και μετά ζητάει από το Android να
+    // ξαναζωγραφίσει όλα τα ενεργά widgets. ΚΑΜΙΑ απολύτως επίδραση στο God Mode/v1/v2 filter ή σε
+    // οποιοδήποτε άλλο κλειδί/μηχανισμό μέτρησης — καθαρά ένα "display cache" για το widget.
+    // ============================================================================================
+    @PluginMethod
+    fun updateWidgetData(call: PluginCall) {
+        try {
+            val stepsVal = call.getInt("steps") ?: 0
+            val kcalVal = call.getInt("kcal") ?: 0
+            val kmVal = call.getDouble("km") ?: 0.0
+            val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, stepsVal)
+                .putInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, kcalVal)
+                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_KM, kmVal.toFloat())
+                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+                .apply()
+            FytraStepsWidgetProvider.requestWidgetUpdate(context)
+            call.resolve()
+        } catch (e: Exception) {
+            Log.d(TAG, "updateWidgetData ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+            try { call.resolve() } catch (e2: Exception) {}
+        }
+    }
+
+    // ============================================================================================
+    // ΝΕΟ (5/11, ζητήθηκε ρητά — "πώς θα ξέρει ο χρήστης ότι υπάρχει widget;"): ζητάει από το ίδιο το
+    // Android να εμφανίσει το επίσημο, μονό-κλικ system dialog "Προσθήκη widget στην αρχική οθόνη;"
+    // (AppWidgetManager.requestPinAppWidget, διαθέσιμο ΜΟΝΟ από Android 8.0/API 26 και πάνω, ΚΑΙ μόνο
+    // αν το launcher της συσκευής το υποστηρίζει -> γι' αυτό ελέγχουμε isRequestPinAppWidgetSupported
+    // πρώτα). Επιστρέφει { supported, requested } ώστε το JS να δείξει το κατάλληλο μήνυμα -> σε
+    // supported=false, το UI δείχνει απλές χειροκίνητες οδηγίες αντί να αποτύχει σιωπηλά. ΚΑΜΙΑ
+    // επίδραση στο God Mode/v1/v2 filter -- καθαρά ένα system-level UI dialog.
+    // ============================================================================================
+    @PluginMethod
+    fun requestPinWidget(call: PluginCall) {
+        val ret = JSObject()
+        try {
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+                ret.put("supported", false)
+                ret.put("requested", false)
+                call.resolve(ret)
+                return
+            }
+            val appWidgetManager = context.getSystemService(android.appwidget.AppWidgetManager::class.java)
+            if (appWidgetManager == null || !appWidgetManager.isRequestPinAppWidgetSupported) {
+                ret.put("supported", false)
+                ret.put("requested", false)
+                call.resolve(ret)
+                return
+            }
+            val provider = android.content.ComponentName(context, FytraStepsWidgetProvider::class.java)
+            val requested = appWidgetManager.requestPinAppWidget(provider, null, null)
+            Log.d(TAG, "requestPinWidget: requested=$requested")
+            ret.put("supported", true)
+            ret.put("requested", requested)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            Log.d(TAG, "requestPinWidget ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+            ret.put("supported", false)
+            ret.put("requested", false)
+            try { call.resolve(ret) } catch (e2: Exception) {}
+        }
+    }
+
     // ΝΕΟ (ΦΑΣΗ 1 — ΜΟΝΟ ΔΙΑΓΝΩΣΤΙΚΟ, ΚΑΜΙΑ ΕΠΙΔΡΑΣΗ ΣΤΗ ΜΕΤΡΗΣΗ): απλά τυπώνει στα logs (ίδιο tag
     // FytraDebug, ώστε να φαίνεται στο "Δες logs (debug)") τα δύο νούμερα hardwareDelta/godModePending
     // που ΗΔΗ υπολογίζονται στο JS (enterApp() στο index.html) μετά από checkClosedAppSteps() και
