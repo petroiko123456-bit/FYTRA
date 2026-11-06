@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): μεταδεδομένα της τέταρτης επιλογής μεγέθους, 3x2 (3 στήλες πλάτος, 2
+     σειρές ύψος), με ΑΚΡΙΒΩΣ το πλήρες περιεχόμενο του 4x2. initialLayout="@layout/widget_steps", το
+     ΙΔΙΟ layout με το κανονικό 4x2. minWidth 180dp (3 στήλες, τύπος 70dp*n-30dp), minHeight 128dp (2
+     σειρές, ίδιο ύψος με το 4x2), resizeMode ανοιχτό. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="128dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_steps"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_steps_description">
+</appwidget-provider>

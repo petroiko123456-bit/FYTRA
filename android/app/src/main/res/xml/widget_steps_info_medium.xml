@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11, v2): μεταδεδομένα της τρίτης επιλογής μεγέθους. ΤΩΡΑ πραγματικά 3x1 (3
+     στήλες πλάτος, 1 σειρά ύψος), όπως ζητήθηκε. Χρησιμοποιεί initialLayout="@layout/widget_steps_compact",
+     το ΙΔΙΟ layout με την επιλογή 2x1 (μειωμένο περιεχόμενο: δακτύλιος+βήματα+kcal/km+"i", βλ. πλήρες
+     σχόλιο στο FytraStepsWidgetProviderMedium.kt για το γιατί το πλήρες περιεχόμενο του 4x2 δεν χωράει σε
+     1 σειρά ύψος). minWidth 180dp (3 στήλες, τύπος 70dp*n-30dp), λίγο παραπάνω πλάτος από το 2x1,
+     resizeMode ανοιχτό. ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, v3): minHeight 40dp ανέβηκε σε 58dp, όπως και στο 2x1,
+     για το ίδιο λόγο (ορατό κουμπί "Open App" στο κοινό widget_steps_compact.xml layout). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="58dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_steps_compact"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_steps_description">
+</appwidget-provider>
