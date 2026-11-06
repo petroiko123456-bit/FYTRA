@@ -566,6 +566,18 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         // υποχώρηση (fallback) στο παλιό, εγγυημένα ασφαλές σύντομο μονοπάτι, ώστε το tap να ΜΗΝ μείνει
         // ποτέ χωρίς καμία προσπάθεια συγχρονισμού.
         if (intent.action == ACTION_WIDGET_REFRESH) {
+            // ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, 6/11, bug "πρόσθεσε 60 λάθος βήματα ενώ η εφαρμογή ΔΕΝ ήταν
+            // κλειστή"): η raw ανάγνωση αισθητήρα (μέσω FytraWidgetCatchUpService/hardwareCatchUpCore)
+            // είναι ΜΟΝΟ για την περίπτωση που η εφαρμογή είναι ΠΡΑΓΜΑΤΙΚΑ κλειστή -- όταν το ζωντανό
+            // FytraStepForegroundService ήδη τρέχει, ο πραγματικός μετρητής ΗΔΗ συγχρονίζει το widget
+            // μόνος του (pushWidgetUpdateFromNativeCredit, κάθε ~5"), οπότε μια ΕΠΙΠΛΕΟΝ raw ανάγνωση
+            // εδώ θα πρόσθετε ΜΗ φιλτραρισμένο αριθμό πάνω από τον ήδη σωστό (αυτό ήταν το bug). Σε αυτή
+            // την περίπτωση απλά ξαναζωγραφίζουμε το widget από το ΗΔΗ σωστό cache -- καμία ανάγνωση
+            // αισθητήρα, καμία επίδραση στη μέτρηση.
+            if (FytraStepForegroundService.isRunning) {
+                try { requestWidgetUpdate(context) } catch (e: Exception) { /* μη κρίσιμο */ }
+                return
+            }
             try {
                 val svcIntent = Intent(context, FytraWidgetCatchUpService::class.java)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

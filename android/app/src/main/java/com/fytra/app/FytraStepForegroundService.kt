@@ -31,6 +31,17 @@ class FytraStepForegroundService : Service() {
         private const val TAG = "FytraDebug"
         private const val CHANNEL_ID = "fytra_step_tracking_channel"
         private const val NOTIFICATION_ID = 4821
+        // ΝΕΟ (ΔΙΟΡΘΩΣΗ, ζητήθηκε ρητά, 6/11, bug "πρόσθεσε 60 λάθος βήματα ενώ η εφαρμογή ΔΕΝ ήταν
+        // κλειστή"): απλή σημαία "τρέχει αυτή τη στιγμή το ζωντανό service μέτρησης;", ώστε το
+        // FytraStepsWidgetProvider.onReceive(ACTION_WIDGET_REFRESH) να ξέρει αν πρέπει να κάνει raw
+        // ανάγνωση αισθητήρα (μόνο όταν η εφαρμογή είναι ΠΡΑΓΜΑΤΙΚΑ κλειστή) ή όχι (όταν ήδη τρέχει
+        // ζωντανά και συγχρονίζει μόνη της μέσω pushWidgetUpdateFromNativeCredit, άρα ΔΕΝ χρειάζεται --
+        // και ΔΕΝ πρέπει -- να διαβαστεί ξανά ο ωμός (raw) αισθητήρας, που θα έδινε μη φιλτραρισμένο
+        // αριθμό πάνω από τον ήδη σωστό). ΔΕΝ αγγίζει κανένα SensorEventListener/God Mode -- καθαρά μια
+        // σημαία κατάστασης "είναι ζωντανό αυτό το service τώρα".
+        @Volatile
+        var isRunning: Boolean = false
+            private set
     }
 
     override fun onCreate() {
@@ -58,6 +69,7 @@ class FytraStepForegroundService : Service() {
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
+        isRunning = true
         // START_STICKY: αν η διεργασία σκοτωθεί παρόλα αυτά από το σύστημα (π.χ. πολύ
         // επιθετική εξοικονόμηση μπαταρίας OEM), το Android θα προσπαθήσει να την
         // ξανασηκώσει αργότερα. ΔΕΝ είναι 100% εγγυημένο σε όλες τις συσκευές/OEM.
@@ -85,6 +97,7 @@ class FytraStepForegroundService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "FytraStepForegroundService: onDestroy()")
+        isRunning = false
         super.onDestroy()
     }
 
