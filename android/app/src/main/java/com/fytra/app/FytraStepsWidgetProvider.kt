@@ -77,11 +77,20 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         // κλειστή. Δεν ανοίγει καθόλου την εφαρμογή.
         const val ACTION_WIDGET_REFRESH = "com.fytra.app.ACTION_WIDGET_REFRESH"
 
-        // ΝΕΟ: η κουκκίδα "i" πάνω δεξιά -- δείχνει ένα σύντομο Toast που εξηγεί στον χρήστη πώς δουλεύει
-        // το widget (πάτημα = refresh όσο η εφαρμογή είναι κλειστή· αυτόματο real-time όσο τρέχει).
+        // ΔΙΟΡΘΩΣΗ (bug report, "το Toast βγαίνει κομμένο κάτω στην οθόνη"): το Toast εγκαταλείφθηκε --
+        // από Android 11+, η θέση/gravity ενός Toast ΔΕΝ τηρείται πλέον όταν προέρχεται από διεργασία
+        // που δεν είναι στο προσκήνιο (όπως ένας widget BroadcastReceiver), το OS το αναγκάζει πάντα στην
+        // προεπιλεγμένη θέση κάτω -- εκτός ελέγχου μας. Αντί γι' αυτό, η κουκκίδα "i" τώρα ανοιγοκλείνει
+        // ΕΝΑ POPUP μέσα στο ΙΔΙΟ το widget (βλ. widgetInfoBubble στο layout) -- πλήρως ελεγχόμενο από
+        // εμάς μέσω visibility GONE/VISIBLE, άρα πάντα εντός των ορίων.
         const val ACTION_WIDGET_INFO = "com.fytra.app.ACTION_WIDGET_INFO"
+        // ΝΕΟ: το κουμπί "✕" πάνω στο ίδιο το popup -- κλείνει το popup.
+        const val ACTION_WIDGET_INFO_HIDE = "com.fytra.app.ACTION_WIDGET_INFO_HIDE"
+        // ΝΕΟ: αποθηκεύει αν το popup είναι ΗΔΗ ανοιχτό (boolean) -- διαβάζεται από buildRemoteViews() για
+        // να αποφασίσει αν το widgetInfoBubble είναι VISIBLE ή GONE σε κάθε (ανα)σχεδιασμό του widget.
+        const val KEY_WIDGET_INFO_VISIBLE = "widgetInfoVisible"
 
-        private data class WidgetTheme(
+        internal data class WidgetTheme(
             val bgRes: Int,
             val badgeRes: Int,
             val statRes: Int,
@@ -89,22 +98,33 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val accentColor: Int,
             val labelColor: Int,
             val ringStartColor: Int,
-            val ringEndColor: Int
+            val ringEndColor: Int,
+            // ΝΕΟ (ζητήθηκε ρητά, 6/11): ίδιο φόντο με bgRes αλλά τυλιγμένο σε <ripple> -- χρησιμοποιείται
+            // ΜΟΝΟ στο κλικαρόμενο root view (widgetRoot/widgetCompactRoot) ώστε το πάτημα για refresh να
+            // δίνει οπτικό εφέ "πατήματος" (ripple/highlight), ενώ τα υπόλοιπα views (κουμπιά θέματος κλπ.)
+            // κρατάνε το απλό bgRes.
+            val pressableBgRes: Int
         )
 
-        private val THEMES = arrayOf(
+        internal val THEMES = arrayOf(
             WidgetTheme(R.drawable.widget_bg_0, R.drawable.badge_bg_0, R.drawable.stat_bg_0, R.drawable.icon_wrap_bg_0,
-                Color.parseColor("#FFE07A"), Color.parseColor("#B89A5A"), Color.parseColor("#FFE07A"), Color.parseColor("#E8A83D")),
+                Color.parseColor("#FFE07A"), Color.parseColor("#B89A5A"), Color.parseColor("#FFE07A"), Color.parseColor("#E8A83D"),
+                R.drawable.widget_bg_0_pressable),
             WidgetTheme(R.drawable.widget_bg_1, R.drawable.badge_bg_1, R.drawable.stat_bg_1, R.drawable.icon_wrap_bg_1,
-                Color.parseColor("#7FD8FF"), Color.parseColor("#6F97AC"), Color.parseColor("#7FD8FF"), Color.parseColor("#2E8FD9")),
+                Color.parseColor("#7FD8FF"), Color.parseColor("#6F97AC"), Color.parseColor("#7FD8FF"), Color.parseColor("#2E8FD9"),
+                R.drawable.widget_bg_1_pressable),
             WidgetTheme(R.drawable.widget_bg_2, R.drawable.badge_bg_2, R.drawable.stat_bg_2, R.drawable.icon_wrap_bg_2,
-                Color.parseColor("#8AFFC4"), Color.parseColor("#6FAE8C"), Color.parseColor("#8AFFC4"), Color.parseColor("#2ECC71")),
+                Color.parseColor("#8AFFC4"), Color.parseColor("#6FAE8C"), Color.parseColor("#8AFFC4"), Color.parseColor("#2ECC71"),
+                R.drawable.widget_bg_2_pressable),
             WidgetTheme(R.drawable.widget_bg_3, R.drawable.badge_bg_3, R.drawable.stat_bg_3, R.drawable.icon_wrap_bg_3,
-                Color.parseColor("#FF8FA3"), Color.parseColor("#B87A8A"), Color.parseColor("#FF8FA3"), Color.parseColor("#E63950")),
+                Color.parseColor("#FF8FA3"), Color.parseColor("#B87A8A"), Color.parseColor("#FF8FA3"), Color.parseColor("#E63950"),
+                R.drawable.widget_bg_3_pressable),
             WidgetTheme(R.drawable.widget_bg_4, R.drawable.badge_bg_4, R.drawable.stat_bg_4, R.drawable.icon_wrap_bg_4,
-                Color.parseColor("#C9A3FF"), Color.parseColor("#9A86B8"), Color.parseColor("#C9A3FF"), Color.parseColor("#9D5CE8")),
+                Color.parseColor("#C9A3FF"), Color.parseColor("#9A86B8"), Color.parseColor("#C9A3FF"), Color.parseColor("#9D5CE8"),
+                R.drawable.widget_bg_4_pressable),
             WidgetTheme(R.drawable.widget_bg_5, R.drawable.badge_bg_5, R.drawable.stat_bg_5, R.drawable.icon_wrap_bg_5,
-                Color.parseColor("#FFB15C"), Color.parseColor("#B8905A"), Color.parseColor("#FFB15C"), Color.parseColor("#E8762E"))
+                Color.parseColor("#FFB15C"), Color.parseColor("#B8905A"), Color.parseColor("#FFB15C"), Color.parseColor("#E8762E"),
+                R.drawable.widget_bg_5_pressable)
         )
 
         // Καλείται από το FytraStepCounterPlugin.updateWidgetData()/pushWidgetUpdateFromNativeCredit() αμέσως
@@ -129,13 +149,50 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                     }
                 }
             } catch (e: Exception) { /* μη κρίσιμο -- το widget απλά δεν ανανεώθηκε αυτή τη φορά */ }
+
+            // ΝΕΟ (ζητήθηκε ρητά): αν ο χρήστης έχει βάλει ΚΑΙ το μικρό (2x1) widget, ενημερώνεται ΚΑΙ αυτό
+            // εδώ -- μοιράζονται το ΙΔΙΟ WIDGET_PREFS_NAME "display cache", απλά διαφορετικό RemoteViews
+            // layout (βλ. FytraStepsWidgetProviderCompact.buildRemoteViewsCompact()).
+            try {
+                val mgr2 = AppWidgetManager.getInstance(context)
+                val compactIds = mgr2.getAppWidgetIds(android.content.ComponentName(context, FytraStepsWidgetProviderCompact::class.java))
+                if (compactIds.isNotEmpty()) {
+                    val compactViews = FytraStepsWidgetProviderCompact.buildRemoteViewsCompact(context)
+                    for (id in compactIds) { mgr2.updateAppWidget(id, compactViews) }
+                }
+            } catch (e: Exception) { /* μη κρίσιμο -- απλά δεν υπάρχει/δεν ανανεώθηκε το compact widget */ }
+
+            // ΝΕΟ (ζητήθηκε ρητά, v2): το ίδιο και για την τρίτη επιλογή μεγέθους (3x1) -- ΤΩΡΑ
+            // χρησιμοποιεί το ΙΔΙΟ compact RemoteViews με το 2x1 (buildRemoteViewsCompact), ΟΧΙ το πλήρες
+            // buildRemoteViews(), αφού το 3x1 κράτησε το ίδιο μειωμένο περιεχόμενο με το 2x1 (βλ. σχόλιο
+            // στο FytraStepsWidgetProviderMedium.kt).
+            try {
+                val mgr3 = AppWidgetManager.getInstance(context)
+                val mediumIds = mgr3.getAppWidgetIds(android.content.ComponentName(context, FytraStepsWidgetProviderMedium::class.java))
+                if (mediumIds.isNotEmpty()) {
+                    val mediumViews = FytraStepsWidgetProviderCompact.buildRemoteViewsCompact(context)
+                    for (id in mediumIds) { mgr3.updateAppWidget(id, mediumViews) }
+                }
+            } catch (e: Exception) { /* μη κρίσιμο -- απλά δεν υπάρχει/δεν ανανεώθηκε το medium widget */ }
+
+            // ΝΕΟ (ζητήθηκε ρητά, 6/11): τέταρτη επιλογή μεγέθους (3x2) -- ΧΡΗΣΙΜΟΠΟΙΕΙ το πλήρες
+            // buildRemoteViews() (ΟΧΙ το compact), αφού το 3x2 κρατάει ακριβώς το περιεχόμενο του 4x2
+            // (βλ. σχόλιο στο FytraStepsWidgetProviderWide.kt).
+            try {
+                val mgr4 = AppWidgetManager.getInstance(context)
+                val wideIds = mgr4.getAppWidgetIds(android.content.ComponentName(context, FytraStepsWidgetProviderWide::class.java))
+                if (wideIds.isNotEmpty()) {
+                    val wideViews = buildRemoteViews(context)
+                    for (id in wideIds) { mgr4.updateAppWidget(id, wideViews) }
+                }
+            } catch (e: Exception) { /* μη κρίσιμο -- απλά δεν υπάρχει/δεν ανανεώθηκε το wide widget */ }
         }
 
         // ΝΕΟ: ζωγραφίζει τον κυκλικό δακτύλιο προόδου σε ένα τετράγωνο Bitmap -- μονοπάτι "φόντο" (λεπτός,
         // ημιδιάφανος κύκλος) + μονοπάτι "πρόοδος" (gradient τόξο, στρογγυλεμένα άκρα, ξεκινάει από πάνω
         // όπως στο εγκεκριμένο mockup). Καλείται ΚΑΘΕ update -- αρκετά ελαφρύ (μία μόνο Bitmap σχεδίαση
         // μερικών δεκάδων pixel) για να τρέχει σε κάθε ανανέωση χωρίς αισθητή επιβάρυνση.
-        private fun drawProgressRingBitmap(sizePx: Int, strokeWidthPx: Float, progressFraction: Float, theme: WidgetTheme): Bitmap {
+        internal fun drawProgressRingBitmap(sizePx: Int, strokeWidthPx: Float, progressFraction: Float, theme: WidgetTheme): Bitmap {
             val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bmp)
             val pad = strokeWidthPx / 2f + 2f
@@ -171,7 +228,7 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             return bmp
         }
 
-        private fun themeAt(index: Int): WidgetTheme {
+        internal fun themeAt(index: Int): WidgetTheme {
             val safe = if (index in 0 until THEME_COUNT) index else 0
             return THEMES[safe]
         }
@@ -185,9 +242,12 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val goal = prefs.getInt(KEY_WIDGET_GOAL, 6000)
             val themeIndex = prefs.getInt(KEY_WIDGET_THEME_INDEX, 0)
             val theme = themeAt(themeIndex)
+            val infoVisible = prefs.getBoolean(KEY_WIDGET_INFO_VISIBLE, false)
 
             // -------- φόντα θέματος --------
-            views.setInt(R.id.widgetRoot, "setBackgroundResource", theme.bgRes)
+            // ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, 6/11): pressableBgRes αντί για bgRes -- δίνει ripple/highlight εφέ
+            // "πατήματος" στο tap-to-refresh.
+            views.setInt(R.id.widgetRoot, "setBackgroundResource", theme.pressableBgRes)
             views.setInt(R.id.widgetBrandBadge, "setBackgroundResource", theme.badgeRes)
             views.setInt(R.id.widgetThemeBtn, "setBackgroundResource", theme.iconWrapRes)
             views.setInt(R.id.widgetKcalWrap, "setBackgroundResource", theme.statRes)
@@ -250,21 +310,145 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val cyclePendingIntent = android.app.PendingIntent.getBroadcast(context, 1, cycleIntent, launchFlags)
             views.setOnClickPendingIntent(R.id.widgetThemeBtn, cyclePendingIntent)
 
-            // ΝΕΟ: κουκκίδα πληροφοριών πάνω δεξιά -- δικό της click target, broadcast ACTION_WIDGET_INFO.
+            // ΝΕΟ: κουκκίδα πληροφοριών πάνω δεξιά -- δικό της click target, broadcast ACTION_WIDGET_INFO
+            // (ανοίγει το popup, βλ. onReceive).
             val infoIntent = Intent(context, FytraStepsWidgetProvider::class.java)
             infoIntent.action = ACTION_WIDGET_INFO
             val infoPendingIntent = android.app.PendingIntent.getBroadcast(context, 3, infoIntent, launchFlags)
             views.setOnClickPendingIntent(R.id.widgetInfoBtn, infoPendingIntent)
+
+            // ΝΕΟ: το κουμπί "✕" πάνω στο ίδιο το popup -- δικό του click target, broadcast
+            // ACTION_WIDGET_INFO_HIDE (κλείνει το popup).
+            val infoHideIntent = Intent(context, FytraStepsWidgetProvider::class.java)
+            infoHideIntent.action = ACTION_WIDGET_INFO_HIDE
+            val infoHidePendingIntent = android.app.PendingIntent.getBroadcast(context, 4, infoHideIntent, launchFlags)
+            views.setOnClickPendingIntent(R.id.widgetInfoCloseBtn, infoHidePendingIntent)
+
+            // ΝΕΟ: το ίδιο το popup εμφανίζεται/κρύβεται ανάλογα με το αποθηκευμένο KEY_WIDGET_INFO_VISIBLE
+            // -- πάντα GONE εξ ορισμού (δεν ανοίγει μόνο του ποτέ, μόνο όταν πατηθεί το "i").
+            views.setViewVisibility(R.id.widgetInfoBubble, if (infoVisible) android.view.View.VISIBLE else android.view.View.GONE)
 
             return views
         }
 
         // Απλή μορφοποίηση χιλιάδων (π.χ. 12.345) -- ανεξάρτητη από το el-GR locale ρύθμισμα του JS,
         // ώστε να δουλεύει αξιόπιστα και σε συσκευές χωρίς ελληνικό locale εγκατεστημένο.
-        private fun formatThousands(n: Int): String {
+        internal fun formatThousands(n: Int): String {
             return try {
                 String.format(Locale.US, "%,d", n).replace(",", ".")
             } catch (e: Exception) { n.toString() }
+        }
+
+        // ============================================================================================
+        // ΚΟΙΝΟΧΡΗΣΤΟ (βλ. πλήρες σχόλιο στο tryHardwareCatchUp): διαβάζει τον ΥΛΙΚΟ (hardware) αισθητήρα
+        // βημάτων TYPE_STEP_COUNTER μία φορά, με retries/timeout, και ενημερώνει το κοινό "display cache"
+        // (WIDGET_PREFS_NAME) με τον ίδιο "ΠΟΤΕ δεν μειώνει" φρουρό. ΔΕΝ καλεί το δικό της goAsync() --
+        // αυτό πρέπει να γίνει από το ΔΙΚΟ ΤΟΥ instance κάθε provider class (FytraStepsWidgetProvider ή
+        // FytraStepsWidgetProviderCompact) -- αντ' αυτού παίρνει ένα onDone() callback που καλείται όταν
+        // τελειώσει (είτε βρήκε κάτι, είτε όχι, είτε timeout) ώστε ο καλών να κλείσει το ΔΙΚΟ του
+        // pendingResult.finish(). Έτσι την ίδια, ήδη δοκιμασμένη λογική τη μοιράζονται ΚΑΙ τα δύο μεγέθη
+        // widget, χωρίς διπλό/αποκλίνον κώδικα. ΚΑΜΙΑ επίδραση στο God Mode/v1/v2 filter.
+        // ============================================================================================
+        // ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, 6/11): προστέθηκε παράμετρος timeoutMs (προεπιλογή 9000ms, ΙΔΙΑ με
+        // πριν -- ΚΑΜΙΑ αλλαγή συμπεριφοράς για το αυτόματο onUpdate() κάθε 30' ή το tryHardwareCatchUp()
+        // μέσω goAsync(), που δεν περνάνε καμία τιμή και άρα συνεχίζουν να παίρνουν 9000ms). ΤΟ ΝΕΟ
+        // FytraWidgetCatchUpService (tap-to-refresh, τρέχει ΩΣ Service, ΟΧΙ μέσα σε goAsync(), άρα ΔΕΝ έχει
+        // το σκληρό όριο των ~10s) καλεί αυτή τη συνάρτηση με πολύ μεγαλύτερο timeoutMs (50000ms), ώστε να
+        // προλάβει ένα φρέσκο βήμα του χρήστη χωρίς να χρειάζεται να το κάνει ρητά/σκόπιμα. Η λίστα των
+        // retry delays παρακάτω φιλτράρεται ώστε να μη δημιουργεί ΑΧΡΗΣΤΑ Runnable πέρα από το εκάστοτε
+        // timeoutMs -- με το προεπιλεγμένο 9000ms, τα retries που όντως τρέχουν είναι ΑΚΡΙΒΩΣ τα ίδια με
+        // πριν (500/1500/3000/5000/7000ms). ΚΑΜΙΑ άλλη αλλαγή λογικής -- ίδιος υπολογισμός delta/baseline,
+        // ίδιος "ΠΟΤΕ δεν μειώνει" φρουρός, καμία επίδραση στο God Mode/v1/v2.
+        internal fun hardwareCatchUpCore(context: Context, timeoutMs: Long = 9000L, onDone: () -> Unit) {
+            val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
+            val counterSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER)
+            if (sensorManager == null || counterSensor == null) { onDone(); return }
+            val appCtx = context.applicationContext ?: context
+
+            val closedAppPrefs = appCtx.getSharedPreferences(FytraStepCounterPlugin.CLOSED_APP_PREFS_NAME, Context.MODE_PRIVATE)
+            val hasStoredBefore = closedAppPrefs.contains(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER)
+            val storedValueBefore = closedAppPrefs.getFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, 0f)
+
+            val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
+            val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            lateinit var oneShotListener: android.hardware.SensorEventListener
+            val retryRunnables = mutableListOf<Runnable>()
+
+            val finishOnce = {
+                if (resolved.compareAndSet(false, true)) {
+                    try { sensorManager.unregisterListener(oneShotListener) } catch (e: Exception) {}
+                    retryRunnables.forEach { timeoutHandler.removeCallbacks(it) }
+                    try { onDone() } catch (e: Exception) {}
+                }
+            }
+
+            oneShotListener = object : android.hardware.SensorEventListener {
+                override fun onSensorChanged(event: android.hardware.SensorEvent) {
+                    if (resolved.get()) return
+                    try {
+                        val rawValue = if (event.values.isNotEmpty()) event.values[0] else 0f
+                        if (hasStoredBefore && rawValue >= storedValueBefore) {
+                            val delta = (rawValue - storedValueBefore).toInt()
+                            if (delta > 0) {
+                                val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                                val baselineDayKey = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
+                                val baselineSteps = closedAppPrefs.getInt(FytraStepCounterPlugin.KEY_DAILY_BASELINE_STEPS, 0)
+                                if (baselineDayKey == todayKey) {
+                                    val totalToday = baselineSteps + delta
+                                    val widgetPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+                                    val strideM = widgetPrefs.getFloat(KEY_WIDGET_STRIDE_M, 0.75f)
+                                    val kcalVal = Math.round(totalToday * 0.04).toInt()
+                                    val kmVal = (totalToday * strideM) / 1000.0
+                                    val storedDayKey = widgetPrefs.getString(KEY_WIDGET_DAYKEY, "") ?: ""
+                                    val storedSteps = widgetPrefs.getInt(KEY_WIDGET_STEPS, 0)
+                                    // ΙΔΙΟΣ "ΠΟΤΕ δεν μειώνει" φρουρός με το writeWidgetDisplayCacheGuarded.
+                                    if (storedDayKey != todayKey || totalToday >= storedSteps) {
+                                        widgetPrefs.edit()
+                                            .putInt(KEY_WIDGET_STEPS, totalToday)
+                                            .putInt(KEY_WIDGET_KCAL, kcalVal)
+                                            .putFloat(KEY_WIDGET_KM, kmVal.toFloat())
+                                            .putString(KEY_WIDGET_DAYKEY, todayKey)
+                                            .putLong(KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+                                            .apply()
+                                        requestWidgetUpdate(appCtx)
+                                    }
+                                }
+                            }
+                        }
+                        closedAppPrefs.edit()
+                            .putFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, rawValue)
+                            .putLong(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER_TS, System.currentTimeMillis())
+                            .apply()
+                    } catch (e: Exception) { /* μη κρίσιμο */ }
+                    finishOnce()
+                }
+                override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+            }
+
+            try {
+                // ΙΔΙΟ τέχνασμα batching+flush() με το checkClosedAppSteps() στο plugin -- ζητάει να μας
+                // δοθεί η ΗΔΗ υπάρχουσα τιμή πιο άμεσα, χωρίς να περιμένουμε πραγματικό νέο βήμα. ΣΗΜΕΙΩΣΗ
+                // (ζητήθηκε ρητά, 6/11, διάγνωση "tap δεν κάνει τπτ"): σε πολλές συσκευές (βλ. ΙΔΙΟ σχόλιο
+                // στο checkClosedAppSteps() του plugin) ο TYPE_STEP_COUNTER ΔΕΝ απαντάει καθόλου μέχρι να
+                // γίνει το ΕΠΟΜΕΝΟ πραγματικό βήμα -- το flush() ΔΕΝ εγγυάται άμεση απάντηση σε τέτοιες
+                // συσκευές. ΔΙΟΡΘΩΣΗ: πιο συχνές/γρήγορες επαναλήψεις flush() (ξεκινώντας πολύ νωρίτερα) ΚΑΙ
+                // μεγαλύτερο συνολικό παράθυρο αναμονής, ώστε να έχει τις μέγιστες πιθανότητες να προλάβει
+                // ένα φρέσκο βήμα του χρήστη μέσα στο διάστημα αυτό -- ΔΕΝ λύνει το θεμελιώδες περιορισμό
+                // (χρειάζεται τουλάχιστον ένα νέο βήμα μέσα στο παράθυρο), απλά το μεγαλώνει όσο επιτρέπεται
+                // με ασφάλεια.
+                sensorManager.registerListener(oneShotListener, counterSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST, Int.MAX_VALUE)
+                try { sensorManager.flush(oneShotListener) } catch (e: Exception) {}
+                val allRetryDelays = longArrayOf(500L, 1500L, 3000L, 5000L, 7000L, 10000L, 15000L, 20000L, 30000L, 40000L)
+                for (delayMs in allRetryDelays) {
+                    if (delayMs >= timeoutMs) continue
+                    val retry = Runnable { if (!resolved.get()) { try { sensorManager.flush(oneShotListener) } catch (e: Exception) {} } }
+                    retryRunnables.add(retry)
+                    timeoutHandler.postDelayed(retry, delayMs)
+                }
+                timeoutHandler.postDelayed({ finishOnce() }, timeoutMs)
+            } catch (e: Exception) {
+                finishOnce()
+            }
         }
     }
 
@@ -313,90 +497,16 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
     // writeWidgetDisplayCacheGuarded εφαρμόζεται ΚΑΙ εδώ. ΚΑΜΙΑ επίδραση στο God Mode/v1/v2 -- ξεχωριστό,
     // ανεξάρτητο νήμα λογικής, γράφει μόνο στο δικό του "display cache".
     // ============================================================================================
+    // ΔΙΟΡΘΩΣΗ (ώστε να το ξαναχρησιμοποιεί ΚΑΙ το νέο, μικρό widget 2x1 -- βλ. FytraStepsWidgetProviderCompact):
+    // το goAsync() είναι μέθοδος του ΙΔΙΟΥ του BroadcastReceiver instance, πρέπει να κληθεί από το ΔΙΚΟ
+    // ΤΟΥ onReceive()/onUpdate() κάθε provider class -- ΔΕΝ μπορεί να "δανειστεί" από άλλη κλάση. Γι' αυτό
+    // η πραγματική λογική αισθητήρα μεταφέρθηκε στο κοινόχρηστο companion.hardwareCatchUpCore() παρακάτω
+    // (παίρνει ένα callback onDone() αντί να καλεί το δικό της pendingResult.finish() απευθείας) -- εδώ
+    // μένει μόνο το "λεπτό" wrapper που κάνει goAsync() και περνάει το pendingResult.finish() ως onDone.
     private fun tryHardwareCatchUp(context: Context) {
-        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager ?: return
-        val counterSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER) ?: return
-        val appCtx = context.applicationContext ?: context
-
-        val closedAppPrefs = appCtx.getSharedPreferences(FytraStepCounterPlugin.CLOSED_APP_PREFS_NAME, Context.MODE_PRIVATE)
-        val hasStoredBefore = closedAppPrefs.contains(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER)
-        val storedValueBefore = closedAppPrefs.getFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, 0f)
-
-        // ΝΕΟ: goAsync() -- ζητάει από το Android λίγο παραπάνω χρόνο εκτέλεσης πέρα από το κανονικό,
-        // πολύ σύντομο παράθυρο ενός broadcast receiver, ΜΟΝΟ για όσο χρειάζεται αυτή η γρήγορη ανάγνωση
-        // αισθητήρα. ΠΡΕΠΕΙ να κληθεί το pendingResult.finish() ΠΑΝΤΑ, σε κάθε πιθανό μονοπάτι εξόδου.
         val pendingResult = try { goAsync() } catch (e: Exception) { return }
-        val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
-        val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        lateinit var oneShotListener: android.hardware.SensorEventListener
-        val retryRunnables = mutableListOf<Runnable>()
-
-        val finishOnce = {
-            if (resolved.compareAndSet(false, true)) {
-                try { sensorManager.unregisterListener(oneShotListener) } catch (e: Exception) {}
-                retryRunnables.forEach { timeoutHandler.removeCallbacks(it) }
-                try { pendingResult.finish() } catch (e: Exception) {}
-            }
-        }
-
-        oneShotListener = object : android.hardware.SensorEventListener {
-            override fun onSensorChanged(event: android.hardware.SensorEvent) {
-                if (resolved.get()) return
-                try {
-                    val rawValue = if (event.values.isNotEmpty()) event.values[0] else 0f
-                    if (hasStoredBefore && rawValue >= storedValueBefore) {
-                        val delta = (rawValue - storedValueBefore).toInt()
-                        if (delta > 0) {
-                            val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-                            val baselineDayKey = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
-                            val baselineSteps = closedAppPrefs.getInt(FytraStepCounterPlugin.KEY_DAILY_BASELINE_STEPS, 0)
-                            if (baselineDayKey == todayKey) {
-                                val totalToday = baselineSteps + delta
-                                val widgetPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
-                                val strideM = widgetPrefs.getFloat(KEY_WIDGET_STRIDE_M, 0.75f)
-                                val kcalVal = Math.round(totalToday * 0.04).toInt()
-                                val kmVal = (totalToday * strideM) / 1000.0
-                                val storedDayKey = widgetPrefs.getString(KEY_WIDGET_DAYKEY, "") ?: ""
-                                val storedSteps = widgetPrefs.getInt(KEY_WIDGET_STEPS, 0)
-                                // ΙΔΙΟΣ "ΠΟΤΕ δεν μειώνει" φρουρός με το writeWidgetDisplayCacheGuarded.
-                                if (storedDayKey != todayKey || totalToday >= storedSteps) {
-                                    widgetPrefs.edit()
-                                        .putInt(KEY_WIDGET_STEPS, totalToday)
-                                        .putInt(KEY_WIDGET_KCAL, kcalVal)
-                                        .putFloat(KEY_WIDGET_KM, kmVal.toFloat())
-                                        .putString(KEY_WIDGET_DAYKEY, todayKey)
-                                        .putLong(KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
-                                        .apply()
-                                    requestWidgetUpdate(appCtx)
-                                }
-                            }
-                        }
-                    }
-                    closedAppPrefs.edit()
-                        .putFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, rawValue)
-                        .putLong(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER_TS, System.currentTimeMillis())
-                        .apply()
-                } catch (e: Exception) { /* μη κρίσιμο */ }
-                finishOnce()
-            }
-            override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
-        }
-
-        try {
-            // ΙΔΙΟ τέχνασμα batching+flush() με το checkClosedAppSteps() στο plugin -- ζητάει να μας δοθεί
-            // η ΗΔΗ υπάρχουσα τιμή πιο άμεσα, χωρίς να περιμένουμε πραγματικό νέο βήμα.
-            sensorManager.registerListener(oneShotListener, counterSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST, Int.MAX_VALUE)
-            try { sensorManager.flush(oneShotListener) } catch (e: Exception) {}
-            for (delayMs in longArrayOf(1500L, 3000L, 5000L)) {
-                val retry = Runnable { if (!resolved.get()) { try { sensorManager.flush(oneShotListener) } catch (e: Exception) {} } }
-                retryRunnables.add(retry)
-                timeoutHandler.postDelayed(retry, delayMs)
-            }
-            // ΣΗΜΑΝΤΙΚΟ: goAsync() δίνει ΠΕΡΙΟΡΙΣΜΕΝΟ χρόνο (λίγα δευτερόλεπτα) -- timeout αρκετά
-            // σύντομο ώστε να προλάβει ΠΑΝΤΑ να κλείσει πριν το Android "τιμωρήσει" τον receiver.
-            timeoutHandler.postDelayed({ finishOnce() }, 7000L)
-        } catch (e: Exception) {
-            finishOnce()
+        hardwareCatchUpCore(context) {
+            try { pendingResult.finish() } catch (e: Exception) {}
         }
     }
 
@@ -414,25 +524,48 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             } catch (e: Exception) { /* μη κρίσιμο */ }
             return
         }
-        // ΝΕΟ (ζητήθηκε ρητά, 5/11): πάτημα στο κύριο σώμα του widget -- on-demand συγχρονισμός ΤΩΡΑ με
-        // τον αισθητήρα του υλικού, ΑΝΕΞΑΡΤΗΤΑ από το αυτόματο 30λεπτο onUpdate(). Χρησιμοποιεί ΑΚΡΙΒΩΣ
-        // την ίδια, ήδη δοκιμασμένη λογική (goAsync() + one-shot listener + flush retries + timeout) --
-        // απλά καλείται απευθείας από εδώ αντί να περιμένει το περιοδικό onUpdate(). onReceive() είναι
-        // ο ίδιος "ζωντανός" call stack που χρειάζεται το goAsync(), άρα είναι ασφαλές.
+        // ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, 6/11, bug report "πατάω το widget και δεν γίνεται τπτ"): το ΠΑΛΙΟ
+        // tryHardwareCatchUp() μέσω goAsync() έχει σκληρό όριο Android ~9-10s -- σε πολλές συσκευές
+        // (ειδικά Samsung) ο TYPE_STEP_COUNTER δεν απαντάει καθόλου μέχρι το ΕΠΟΜΕΝΟ πραγματικό βήμα, άρα
+        // αν ο χρήστης στέκεται ακίνητος τη στιγμή του tap, το παράθυρο λήγει ΧΩΡΙΣ καμία ενημέρωση.
+        // ΛΥΣΗ (ζητήθηκε ρητά, ο χρήστης ενημερώθηκε και συμφώνησε για τη σύντομη, σιωπηλή ειδοποίηση που
+        // αυτό συνεπάγεται): το tap ΤΩΡΑ ξεκινάει το FytraWidgetCatchUpService -- ΙΔΙΑ ΑΚΡΙΒΩΣ λογική
+        // ανάγνωσης αισθητήρα (hardwareCatchUpCore, καμία αλλαγή στον υπολογισμό/God Mode), απλά σε Service
+        // αντί για goAsync(), που επιτρέπει πολύ μεγαλύτερο παράθυρο αναμονής (50s). Αν η εκκίνηση του
+        // service αποτύχει για οποιονδήποτε λόγο (π.χ. περιορισμός συγκεκριμένου OEM), γίνεται ΑΜΕΣΗ
+        // υποχώρηση (fallback) στο παλιό, εγγυημένα ασφαλές σύντομο μονοπάτι, ώστε το tap να ΜΗΝ μείνει
+        // ποτέ χωρίς καμία προσπάθεια συγχρονισμού.
         if (intent.action == ACTION_WIDGET_REFRESH) {
-            try { tryHardwareCatchUp(context) } catch (e: Exception) { /* μη κρίσιμο */ }
+            try {
+                val svcIntent = Intent(context, FytraWidgetCatchUpService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(svcIntent)
+                } else {
+                    context.startService(svcIntent)
+                }
+            } catch (e: Exception) {
+                try { tryHardwareCatchUp(context) } catch (e2: Exception) { /* μη κρίσιμο */ }
+            }
             return
         }
-        // ΝΕΟ: κουκκίδα πληροφοριών -- απλό Toast, ΔΕΝ ανοίγει την εφαρμογή, ΔΕΝ αγγίζει κανένα κλειδί
-        // μέτρησης. Toast.makeText() από broadcast receiver context δουλεύει κανονικά (δεν χρειάζεται
-        // Activity) -- καθιερωμένο Android pattern για feedback πάνω σε home-screen widgets.
+        // ΔΙΟΡΘΩΣΗ (bug report, "το Toast βγαίνει κομμένο κάτω στην οθόνη"): εγκαταλείφθηκε το Toast
+        // (βλ. πλήρες σχόλιο στη δήλωση ACTION_WIDGET_INFO παραπάνω) -- τώρα απλά ανοίγει το popup μέσα
+        // στο ίδιο το widget (KEY_WIDGET_INFO_VISIBLE=true) και ξαναζωγραφίζει. ΔΕΝ ανοίγει την εφαρμογή,
+        // ΔΕΝ αγγίζει κανένα κλειδί μέτρησης.
         if (intent.action == ACTION_WIDGET_INFO) {
             try {
-                android.widget.Toast.makeText(
-                    context,
-                    "Πατώντας στο widget, συγχρονίζονται τα βήματα που μετρήθηκαν όσο η εφαρμογή είναι τελείως κλειστή. Όσο η εφαρμογή τρέχει στο παρασκήνιο, το widget ενημερώνεται μόνο του σε πραγματικό χρόνο.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
+                val prefs = context.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putBoolean(KEY_WIDGET_INFO_VISIBLE, true).apply()
+                requestWidgetUpdate(context)
+            } catch (e: Exception) { /* μη κρίσιμο */ }
+            return
+        }
+        // ΝΕΟ: το κουμπί "✕" πάνω στο popup -- κλείνει το popup ξανά.
+        if (intent.action == ACTION_WIDGET_INFO_HIDE) {
+            try {
+                val prefs = context.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+                prefs.edit().putBoolean(KEY_WIDGET_INFO_VISIBLE, false).apply()
+                requestWidgetUpdate(context)
             } catch (e: Exception) { /* μη κρίσιμο */ }
             return
         }
