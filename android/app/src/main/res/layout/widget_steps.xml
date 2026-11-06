@@ -133,26 +133,6 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- ΝΕΟ (ζητήθηκε ρητά, 5/11): κουκκίδα πληροφοριών πάνω δεξιά, ξεχωριστό click target
-                 (BROADCAST, βλ. ACTION_WIDGET_INFO στο onReceive), δείχνει στον χρήστη με Toast τι κάνει
-                 το πάτημα στο υπόλοιπο widget. Μπαίνει ΜΕΤΑ την κάρτα "Στόχος!" (που έχει weight=1 και
-                 γεμίζει τον ενδιάμεσο χώρο), οπότε μένει πάντα κολλημένη στην άκρη δεξιά. -->
-            <FrameLayout
-                android:id="@+id/widgetInfoBtn"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/icon_wrap_bg_0">
-                <TextView
-                    android:id="@+id/widgetInfoBtnText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="i"
-                    android:textStyle="bold|italic"
-                    android:textSize="13sp"
-                    android:textColor="#F0E2BC"/>
-            </FrameLayout>
         </LinearLayout>
 
         <!-- ================= MAIN ROW: δακτύλιος + κάρτες kcal/km =================
@@ -344,5 +324,85 @@
                     android:textStyle="bold"/>
             </LinearLayout>
         </LinearLayout>
+    </LinearLayout>
+
+    <!-- ΔΙΟΡΘΩΣΗ (bug report): η κουκκίδα "i" μετακόμισε ΕΞΩ από την πάνω σειρά (που μοιράζεται χώρο με
+         την κάρτα "Στόχος!") και μπήκε ΕΔΩ, ως δικό της, ανεξάρτητο child ΑΠΕΥΘΕΙΑΣ μέσα στο widgetRoot
+         (FrameLayout) με layout_gravity="top|end", έτσι κάθεται ΠΑΝΤΑ στην απόλυτη κορυφή-δεξιά γωνία
+         του widget, ΑΝΕΞΑΡΤΗΤΑ από το αν/πότε εμφανιστεί η κάρτα "Στόχος!" στην πάνω σειρά. Δεν μπορεί
+         ποτέ να "πέσει πάνω της" ούτε να σπρωχτεί, αφού δεν μοιράζεται καθόλου row/weight με αυτή. -->
+    <FrameLayout
+        android:id="@+id/widgetInfoBtn"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/icon_wrap_bg_0">
+        <TextView
+            android:id="@+id/widgetInfoBtnText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="i"
+            android:textStyle="bold|italic"
+            android:textSize="13sp"
+            android:textColor="#F0E2BC"/>
+    </FrameLayout>
+
+    <!-- ΝΕΟ (ζητήθηκε ρητά): ΑΝΤΙ για Toast (που εμφανιζόταν κομμένο κάτω στην οθόνη, εκτός ελέγχου μας:
+         θέση/μέγεθος Toast από background receiver δεν ρυθμίζεται πλέον σε πρόσφατο Android), το "i"
+         τώρα ανοιγοκλείνει ΑΥΤΟ το popup, ΜΕΣΑ στο ίδιο το widget, δίπλα-κάτω από το κουμπί "i", με δικό
+         του κουμπί "✕" για κλείσιμο. Ελέγχεται απόλυτα από εμάς (visibility GONE/VISIBLE μέσω
+         buildRemoteViews(), βλ. KEY_WIDGET_INFO_VISIBLE), πάντα εντός των ορίων του widget. -->
+    <LinearLayout
+        android:id="@+id/widgetInfoBubble"
+        android:layout_width="192dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="38dp"
+        android:layout_marginEnd="8dp"
+        android:orientation="vertical"
+        android:background="@drawable/popup_bg_0"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Πώς δουλεύει"
+                android:textColor="#FFF3DC"
+                android:textSize="11sp"
+                android:textStyle="bold"/>
+            <FrameLayout
+                android:id="@+id/widgetInfoCloseBtn"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:background="@drawable/icon_wrap_bg_0">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="✕"
+                    android:textColor="#F0E2BC"
+                    android:textSize="10sp"/>
+            </FrameLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widgetInfoBubbleText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Πατώντας επάνω στο widget μπορείς να συγχρονίσεις τα βήματα που κάνεις όσο η εφαρμογή είναι κλειστή, με την προϋπόθεση όμως ότι συνεχίζεις να περπατάς. Αν η εφαρμογή όμως είναι ενεργή στο παρασκήνιο, τότε τα βήματά σου ενημερώνονται μόνα τους σε πραγματικό χρόνο."
+            android:textColor="#D8C9A0"
+            android:textSize="10sp"
+            android:lineSpacingExtra="2dp"/>
     </LinearLayout>
 </FrameLayout>
