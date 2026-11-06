@@ -41,6 +41,25 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         const val KEY_WIDGET_KCAL = "widgetKcal"
         const val KEY_WIDGET_KM = "widgetKm"
         const val KEY_WIDGET_UPDATED_TS = "widgetUpdatedTs"
+        // ΝΕΟ (ΔΙΟΡΘΩΣΗ, ζητήθηκε ρητά, 6/11, bug "ο πραγματικός μετρητής δεν πιστώθηκε κανονικά όταν
+        // άνοιξα την εφαρμογή μετά από tap στο widget"): ΔΙΚΟ ΤΟΥ, ξεχωριστό "σημείο αναφοράς" του raw
+        // αισθητήρα TYPE_STEP_COUNTER, ΑΠΟΚΛΕΙΣΤΙΚΑ για το hardwareCatchUpCore() (tap-to-refresh widget).
+        // ΠΡΙΝ, το hardwareCatchUpCore() μοιραζόταν το ΙΔΙΟ σημείο αναφοράς
+        // (FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER/_TS) με το checkClosedAppSteps() του plugin
+        // (αυτό που τρέχει ΚΑΝΟΝΙΚΑ όταν ανοίγεις την εφαρμογή και πιστώνει τον ΠΡΑΓΜΑΤΙΚΟ σου μετρητή) --
+        // αυτό σήμαινε ότι όποιο από τα δύο έτρεχε ΠΡΩΤΟ "κατανάλωνε" τη διαφορά και μετακινούσε το κοινό
+        // σημείο αναφοράς, αφήνοντας στο άλλο μόνο το υπόλοιπο. Αποθηκεύεται στο ΙΔΙΟ WIDGET_PREFS_NAME
+        // (όχι στο CLOSED_APP_PREFS_NAME του plugin) ακριβώς για να ΜΗΝ αγγίζει ΠΟΤΕ πια το σημείο αναφοράς
+        // που χρησιμοποιεί το checkClosedAppSteps() για τον πραγματικό μετρητή -- έτσι το άνοιγμα της
+        // εφαρμογής συνεχίζει να βρίσκει ΠΑΝΤΑ το πλήρες, σωστό delta, ό,τι κι αν έχει κάνει το widget στο
+        // μεταξύ. Το widget δείχνει ΜΟΝΟ μια προσωρινή προεπισκόπηση (δικό του "σπίτι", ξεχωριστό cache) --
+        // μόλις ανοίξεις την εφαρμογή, ο πραγματικός μετρητής παίρνει το σωστό, πλήρες νούμερο και το
+        // ξαναστέλνει στο widget μέσω του ήδη υπάρχοντος updateWidgetData()/writeWidgetDisplayCacheGuarded()
+        // (ΙΔΙΟΣ "ΠΟΤΕ δεν μειώνει" φρουρός) -- οπότε τελικά ΠΑΝΤΑ ευθυγραμμίζονται. ΚΑΜΙΑ επίδραση στο God
+        // Mode/v1/v2 filter ή στο checkClosedAppSteps() -- μόνο το tap-to-refresh του widget πλέον διαβάζει/
+        // γράφει εδώ.
+        const val KEY_WIDGET_LAST_RAW_STEP_COUNTER = "widgetLastRawStepCounter"
+        const val KEY_WIDGET_LAST_RAW_STEP_COUNTER_TS = "widgetLastRawStepCounterTs"
         // ΝΕΟ (ΔΙΟΡΘΩΣΗ BUG, "μηδενίζει το widget μόλις ανοίξει η εφαρμογή"): ημερολογιακό κλειδί (yyyy-MM-dd)
         // της μέρας στην οποία ανήκει το τελευταίο αποθηκευμένο KEY_WIDGET_STEPS. Χρησιμοποιείται από το
         // FytraStepCounterPlugin (βλ. writeWidgetDisplayCacheGuarded) ώστε, ΜΕΣΑ στην ΙΔΙΑ μέρα, μια νέα
@@ -366,8 +385,12 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val appCtx = context.applicationContext ?: context
 
             val closedAppPrefs = appCtx.getSharedPreferences(FytraStepCounterPlugin.CLOSED_APP_PREFS_NAME, Context.MODE_PRIVATE)
-            val hasStoredBefore = closedAppPrefs.contains(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER)
-            val storedValueBefore = closedAppPrefs.getFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, 0f)
+            // ΔΙΟΡΘΩΣΗ (6/11): ΔΙΚΟ ΤΟΥ σημείο αναφοράς (WIDGET_PREFS_NAME), ΟΧΙ πια το κοινόχρηστο
+            // FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER -- βλ. πλήρες σχόλιο στον ορισμό του
+            // KEY_WIDGET_LAST_RAW_STEP_COUNTER παραπάνω.
+            val widgetRawPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+            val hasStoredBefore = widgetRawPrefs.contains(KEY_WIDGET_LAST_RAW_STEP_COUNTER)
+            val storedValueBefore = widgetRawPrefs.getFloat(KEY_WIDGET_LAST_RAW_STEP_COUNTER, 0f)
 
             val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -415,9 +438,9 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                                 }
                             }
                         }
-                        closedAppPrefs.edit()
-                            .putFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, rawValue)
-                            .putLong(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER_TS, System.currentTimeMillis())
+                        widgetRawPrefs.edit()
+                            .putFloat(KEY_WIDGET_LAST_RAW_STEP_COUNTER, rawValue)
+                            .putLong(KEY_WIDGET_LAST_RAW_STEP_COUNTER_TS, System.currentTimeMillis())
                             .apply()
                     } catch (e: Exception) { /* μη κρίσιμο */ }
                     finishOnce()
@@ -489,8 +512,15 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
     // creditOneStep()/pushWidgetUpdateFromNativeCredit μέσα στο FytraStepCounterPlugin) συνεχίζει να δίνει
     // πολύ πιο συχνές (~5") ενημερώσεις -- αυτό εδώ είναι ΜΟΝΟ το δίχτυ ασφαλείας για όταν δεν είναι.
     //
-    // ΧΡΗΣΙΜΟΠΟΙΕΙ το ΙΔΙΟ ακριβώς CLOSED_APP_PREFS_NAME/KEY_LAST_RAW_STEP_COUNTER(_TS) που ήδη διατηρεί
-    // το FytraStepCounterPlugin.checkClosedAppSteps() -- ΙΔΙΑ πηγή αλήθειας, συνεπές delta. Ο υπολογισμός
+    // ΔΙΟΡΘΩΣΗ (6/11, bug "ο πραγματικός μετρητής δεν πιστώθηκε κανονικά όταν άνοιξα την εφαρμογή μετά από
+    // tap στο widget"): ΠΡΙΝ, χρησιμοποιούσε το ΙΔΙΟ ακριβώς CLOSED_APP_PREFS_NAME/KEY_LAST_RAW_STEP_COUNTER
+    // (_TS) που διατηρεί το FytraStepCounterPlugin.checkClosedAppSteps() -- αποδείχτηκε ΛΑΘΟΣ: όποιο από τα
+    // δύο (tap στο widget ή άνοιγμα εφαρμογής) έτρεχε ΠΡΩΤΟ, μετακινούσε το κοινό σημείο αναφοράς και άφηνε
+    // στο άλλο μόνο το υπόλοιπο delta -> ο πραγματικός μετρητής πιστωνόταν ελλιπώς όταν προηγούνταν tap στο
+    // widget. ΤΩΡΑ χρησιμοποιεί ΔΙΚΟ ΤΟΥ, ξεχωριστό σημείο αναφοράς (WIDGET_PREFS_NAME/
+    // KEY_WIDGET_LAST_RAW_STEP_COUNTER(_TS), βλ. ορισμός παραπάνω) -- ΔΕΝ αγγίζει πλέον ΚΑΘΟΛΟΥ το σημείο
+    // αναφοράς του checkClosedAppSteps(), το οποίο έτσι βρίσκει ΠΑΝΤΑ το πλήρες, σωστό delta όταν ανοίγει η
+    // εφαρμογή -- ανεξάρτητα από το τι έχει κάνει το widget στο μεταξύ. Ο υπολογισμός
     // του "σημερινού συνόλου" γίνεται ΜΟΝΟ όταν το αποθηκευμένο baseline (KEY_DAILY_BASELINE_STEPS) είναι
     // ΗΔΗ της ΣΗΜΕΡΙΝΗΣ μέρας (αλλιώς αγνοείται -- ασφαλές, το widget απλά περιμένει να ανοίξει η εφαρμογή
     // έστω μία φορά σήμερα πριν αρχίσει να "μαντεύει"). Ο ίδιος "ΠΟΤΕ δεν μειώνει" φρουρός με το
