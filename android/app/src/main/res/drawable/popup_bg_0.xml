@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): φόντο για το popup της κουκκίδας "i" (widgetInfoBubble). ΔΙΟΡΘΩΣΗ (bug
+     report, "το popup είναι see-through, φαίνονται τα γράμματα πίσω"): ΔΕΝ χρησιμοποιεί πλέον το
+     stat_bg_0 (που είναι ΣΚΟΠΙΜΑ σχεδόν διάφανο, alpha=0x14 δηλ. ~8% αδιαφάνεια, φτιαγμένο για διακριτικές
+     κάρτες kcal/km ΠΑΝΩ στο σκούρο φόντο του widget). Αυτό εδώ είναι ΣΧΕΔΟΝ πλήρως αδιαφανές (alpha=0xF2
+     δηλ. ~95%), ώστε το popup να διαβάζεται καθαρά, χωρίς να "διαφαίνεται" το περιεχόμενο πίσω του.
+     Θεωρητικά ανεξάρτητο θέματος (δεν αλλάζει ανά KEY_WIDGET_THEME_INDEX), ίδιο σκούρο φόντο με το
+     widget_bg_0 για οπτική συνέπεια σε όλα τα θέματα. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="14dp"/>
+    <solid android:color="#F2140E06"/>
+    <stroke android:width="1dp" android:color="#8CFFD06E"/>
+</shape>
