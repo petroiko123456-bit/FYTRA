@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): pressable εκδοχή του widget_bg_1.xml (θέμα "ocean") , βλ. σχόλιο στο
+     widget_bg_0_pressable.xml. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#407FD8FF">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="34dp"/>
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#0f1b28" android:centerColor="#0a1420" android:endColor="#0a0d14"/>
+            <stroke android:width="2dp" android:color="#805AC8FA"/>
+        </shape>
+    </item>
+</ripple>

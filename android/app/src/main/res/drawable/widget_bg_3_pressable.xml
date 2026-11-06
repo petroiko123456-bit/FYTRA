@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): pressable εκδοχή του widget_bg_3.xml (θέμα "crimson") , βλ. σχόλιο στο
+     widget_bg_0_pressable.xml. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FF8FA3">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="34dp"/>
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#220f17" android:centerColor="#180a10" android:endColor="#0b0508"/>
+            <stroke android:width="2dp" android:color="#80FF7896"/>
+        </shape>
+    </item>
+</ripple>

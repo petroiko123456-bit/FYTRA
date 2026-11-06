@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): ίδιο φόντο με το widget_bg_0.xml (θέμα "gold"), αλλά τυλιγμένο σε
+     <ripple> ώστε να υπάρχει ΟΠΤΙΚΟ εφέ "πατήματος" (ripple/highlight) στο tap-to-refresh πάνω στο
+     widgetRoot/widgetCompactRoot. Χρησιμοποιείται ΜΟΝΟ στα views που έχουν PendingIntent για refresh,
+     όχι σε κουμπιά όπου το φόντο αλλάζει θέμα κλπ. Το ripple render γίνεται από τον launcher/host που
+     ζωγραφίζει το RemoteViews, υποστηρίζεται ήδη από minSdk 24 (RippleDrawable, API 21+). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FFE07A">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="34dp"/>
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#28200f" android:centerColor="#1c1409" android:endColor="#110c04"/>
+            <stroke android:width="2dp" android:color="#8CFFD06E"/>
+        </shape>
+    </item>
+</ripple>

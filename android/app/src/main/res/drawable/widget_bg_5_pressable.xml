@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): pressable εκδοχή του widget_bg_5.xml (θέμα "orange") , βλ. σχόλιο στο
+     widget_bg_0_pressable.xml. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#40FFB15C">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="34dp"/>
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#28160f" android:centerColor="#1c0f09" android:endColor="#110904"/>
+            <stroke android:width="2dp" android:color="#80FF9646"/>
+        </shape>
+    </item>
+</ripple>

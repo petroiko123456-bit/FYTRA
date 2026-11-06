@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): pressable εκδοχή του widget_bg_2.xml (θέμα "emerald") , βλ. σχόλιο στο
+     widget_bg_0_pressable.xml. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="#408AFFC4">
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="34dp"/>
+            <gradient android:type="linear" android:angle="135"
+                android:startColor="#0c1e16" android:centerColor="#081511" android:endColor="#050b08"/>
+            <stroke android:width="2dp" android:color="#805AFFB4"/>
+        </shape>
+    </item>
+</ripple>
