@@ -51,6 +51,14 @@
             android:name="com.fytra.app.FytraStepForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+        <!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): σύντομο Service που ξεκινάει ΜΟΝΟ από το tap-to-refresh στο
+             widget, ώστε να έχει πολύ μεγαλύτερο παράθυρο αναμονής του αισθητήρα από το goAsync() (βλ.
+             FytraWidgetCatchUpService.kt). Ίδιο foregroundServiceType="dataSync" με το παραπάνω,
+             χρησιμοποιεί τις ίδιες, ήδη δηλωμένες άδειες (FOREGROUND_SERVICE_DATA_SYNC). -->
+        <service
+            android:name="com.fytra.app.FytraWidgetCatchUpService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
         <!-- ΝΕΟ (Σενάριο Γ): δεχεται το μεσονυκτιο AlarmManager alarm ΚΑΙ το BOOT_COMPLETED, ακομα
              κι αν η εφαρμογη ειναι ΕΝΤΕΛΩΣ κλειστη. Βλ. FytraMidnightSnapshotReceiver.kt. -->
         <receiver
@@ -77,6 +85,47 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_steps_info" />
+        </receiver>
+
+        <!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): "μικρή" εκδοχή (2x1) του widget βημάτων, ξεχωριστή
+             receiver/class (FytraStepsWidgetProviderCompact) ώστε να εμφανίζεται ΩΣ ΔΙΚΗ ΤΗΣ επιλογή
+             μεγέθους στον επιλογέα widget του Android, δίπλα στο κανονικό 4x2 από πάνω. Μοιράζονται το
+             ΙΔΙΟ display-cache SharedPreferences, βλ. σχόλια στο .kt αρχείο. -->
+        <receiver
+            android:name="com.fytra.app.FytraStepsWidgetProviderCompact"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_steps_info_compact" />
+        </receiver>
+
+        <!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): τρίτη επιλογή μεγέθους (3 στήλες), ΑΚΡΙΒΩΣ το ίδιο περιεχόμενο με
+             το κανονικό 4x2 (ίδιο layout/λογική, βλ. FytraStepsWidgetProviderMedium.kt). -->
+        <receiver
+            android:name="com.fytra.app.FytraStepsWidgetProviderMedium"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_steps_info_medium" />
+        </receiver>
+
+        <!-- ΝΕΟ (ζητήθηκε ρητά, 6/11): τέταρτη επιλογή μεγέθους, 3x2, με το ΠΛΗΡΕΣ περιεχόμενο του 4x2
+             (βλ. FytraStepsWidgetProviderWide.kt). -->
+        <receiver
+            android:name="com.fytra.app.FytraStepsWidgetProviderWide"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_steps_info_wide" />
         </receiver>
 
         <!-- ΝΕΟ (31/10, ζητήθηκε ρητά): AdMob App ID -> απαιτείται από το @capacitor-community/admob plugin
