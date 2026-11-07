@@ -1160,6 +1160,31 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                             .putFloat(KEY_LAST_RAW_STEP_COUNTER, rawValue)
                             .putLong(KEY_LAST_RAW_STEP_COUNTER_TS, nowMs)
                             .apply()
+                        // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG (ζητήθηκε ρητά, 6/11 — "ανοίγω την εφαρμογή, συγχρονίζεται
+                        // κανονικά, ξανακλείνω, περπατάω άλλα 30, πατάω tap στο widget, μου δείχνει 90 αντί
+                        // για 60 — διπλομέτρηση"): το widget έχει το ΔΙΚΟ ΤΟΥ, ξεχωριστό "σημάδι αναφοράς"
+                        // (FytraStepsWidgetProvider.WIDGET_PREFS_NAME/KEY_WIDGET_LAST_RAW_STEP_COUNTER),
+                        // ξεχωριστό ΕΠΙΤΗΔΕΣ από το παραπάνω KEY_LAST_RAW_STEP_COUNTER της εφαρμογής (βλ.
+                        // σχόλιο στον ορισμό του στο FytraStepsWidgetProvider.kt — η διόρθωση ΤΟΥ "steal"
+                        // bug). Το πρόβλημα: μέχρι τώρα, ΟΤΑΝ η εφαρμογή συγχρόνιζε κανονικά (ΕΔΩ, στο
+                        // άνοιγμα), δεν προχωρούσε ΚΑΙ το σημάδι αναφοράς του widget — έτσι το widget, σε
+                        // επόμενο tap, μετρούσε ΞΑΝΑ από το πολύ παλιό του σημάδι, "ξαναμετρώντας" βήματα
+                        // που η εφαρμογή είχε ΗΔΗ πιστώσει, πάνω στο ήδη συγχρονισμένο σύνολο (διπλομέτρηση).
+                        // ΛΥΣΗ: ΚΑΘΕ φορά που η εφαρμογή συγχρονίζεται εδώ (ό,τι κι αν βγήκε -- delta>0,
+                        // delta=0, ή και reboot), προχωράμε ΚΑΙ το σημάδι αναφοράς του widget στο ΙΔΙΟ
+                        // ακριβώς rawValue -- έτσι το widget ξέρει ότι "μέχρι εδώ έχει ήδη πιστωθεί" και το
+                        // επόμενο tap θα μετρήσει ΜΟΝΟ τα πραγματικά καινούργια βήματα από εδώ και πέρα.
+                        // ΚΑΜΙΑ επίδραση στο God Mode/v1/v2 -- απλή μεταφορά ΤΗΣ ΙΔΙΑΣ ήδη γνωστής τιμής
+                        // raw σε ένα δεύτερο, καθαρά λογιστικό "σημάδι". ΚΑΜΙΑ παραβίαση του oneway (η
+                        // εφαρμογή συνεχίζει να «οδηγεί» — απλά ενημερώνει το widget πού βρίσκεται, δεν
+                        // αλλάζει καθόλου τον δικό της πραγματικό μετρητή βημάτων).
+                        try {
+                            context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                                .edit()
+                                .putFloat(FytraStepsWidgetProvider.KEY_WIDGET_LAST_RAW_STEP_COUNTER, rawValue)
+                                .putLong(FytraStepsWidgetProvider.KEY_WIDGET_LAST_RAW_STEP_COUNTER_TS, nowMs)
+                                .apply()
+                        } catch (e: Exception) { /* μη κρίσιμο */ }
                         // ΝΕΟ (ΔΙΟΡΘΩΣΗ ΟΡΙΣΤΙΚΗ): ΜΟΝΟ εδώ, ΑΦΟΥ έχουμε ΗΔΗ γράψει εμείς οι ίδιοι τη νέα
                         // τιμή αναφοράς, ξεκλειδώνουμε τον διαγνωστικό listener -- από εδώ και πέρα, όποια
                         // ξανά-εγγραφή κάνει αυτός είναι πλέον αβλαβής (απλά θα ξαναγράψει περίπου την ίδια

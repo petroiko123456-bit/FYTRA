@@ -189,7 +189,9 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                 val mgr3 = AppWidgetManager.getInstance(context)
                 val mediumIds = mgr3.getAppWidgetIds(android.content.ComponentName(context, FytraStepsWidgetProviderMedium::class.java))
                 if (mediumIds.isNotEmpty()) {
-                    val mediumViews = FytraStepsWidgetProviderCompact.buildRemoteViewsCompact(context)
+                    // ΔΙΟΡΘΩΣΗ (6/11, v2): το 3x1 έχει ΤΩΡΑ δικό του layout (widget_steps_medium) --
+                    // βλ. σχόλιο στο FytraStepsWidgetProviderMedium.kt.
+                    val mediumViews = FytraStepsWidgetProviderCompact.buildRemoteViewsCompact(context, R.layout.widget_steps_medium)
                     for (id in mediumIds) { mgr3.updateAppWidget(id, mediumViews) }
                 }
             } catch (e: Exception) { /* μη κρίσιμο -- απλά δεν υπάρχει/δεν ανανεώθηκε το medium widget */ }
@@ -384,6 +386,18 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             if (sensorManager == null || counterSensor == null) { onDone(); return }
             val appCtx = context.applicationContext ?: context
 
+            // ΝΕΟ (ζητήθηκε ρητά, 7/11 — "να λειτουργούν συμπληρωματικά"): δεύτερος αισθητήρας,
+            // TYPE_STEP_DETECTOR, χρησιμοποιείται ΑΠΟΚΛΕΙΣΤΙΚΑ ΩΣ "ΞΥΠΝΗΤΗΡΙ" -- ΔΕΝ δίνει ΠΟΤΕ ο ίδιος
+            // το νούμερο βημάτων (δεν στέλνει αθροιστική τιμή, μόνο "έγινε 1 βήμα ΤΩΡΑ"). Ο ΜΟΝΟΣ που
+            // συνεχίζει να υπολογίζει το πραγματικό delta είναι, όπως πριν, ο TYPE_STEP_COUNTER (μέσω του
+            // oneShotListener παρακάτω) -- ΚΑΜΙΑ αλλαγή στη λογική υπολογισμού/God Mode. Ο στόχος είναι
+            // ΜΟΝΟ να ζητάμε φρέσκο flush() από τον STEP_COUNTER ΑΜΕΣΩΣ μόλις όντως γίνει ένα βήμα, αντί
+            // να περιμένουμε τον δικό του αργό, παρτιδοποιημένο ρυθμό ενημέρωσης σε αρκετές συσκευές.
+            // Αν η συσκευή δεν έχει καθόλου αυτόν τον αισθητήρα (detectorSensor == null), απλά τον
+            // αγνοούμε -- η υπάρχουσα λογική (flush() + οι χρονισμένες επαναλήψεις) συνεχίζει ΑΚΡΙΒΩΣ όπως
+            // πριν, χωρίς καμία επίδραση.
+            val detectorSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_DETECTOR)
+
             val closedAppPrefs = appCtx.getSharedPreferences(FytraStepCounterPlugin.CLOSED_APP_PREFS_NAME, Context.MODE_PRIVATE)
             // ΔΙΟΡΘΩΣΗ (6/11): ΔΙΚΟ ΤΟΥ σημείο αναφοράς (WIDGET_PREFS_NAME), ΟΧΙ πια το κοινόχρηστο
             // FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER -- βλ. πλήρες σχόλιο στον ορισμό του
@@ -395,11 +409,16 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
             lateinit var oneShotListener: android.hardware.SensorEventListener
+            lateinit var detectorListener: android.hardware.SensorEventListener
             val retryRunnables = mutableListOf<Runnable>()
 
             val finishOnce = {
                 if (resolved.compareAndSet(false, true)) {
                     try { sensorManager.unregisterListener(oneShotListener) } catch (e: Exception) {}
+                    // ΝΕΟ: ξεκλειδώνει ΚΑΙ τον δεύτερο, "ξυπνητήρι" listener -- αν δεν είχε καθόλου
+                    // καταχωρηθεί (π.χ. η συσκευή δεν έχει TYPE_STEP_DETECTOR), το unregisterListener()
+                    // είναι ασφαλές no-op.
+                    if (detectorSensor != null) { try { sensorManager.unregisterListener(detectorListener) } catch (e: Exception) {} }
                     retryRunnables.forEach { timeoutHandler.removeCallbacks(it) }
                     try { onDone() } catch (e: Exception) {}
                 }
@@ -448,6 +467,18 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                 override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
             }
 
+            // ΝΕΟ: ο "ξυπνητήρι" listener -- ΔΕΝ υπολογίζει τίποτα, ΔΕΝ γράφει πουθενά, ΔΕΝ καλεί ποτέ
+            // finishOnce() ο ίδιος. Το ΜΟΝΟ που κάνει είναι να ζητάει ΑΜΕΣΩΣ flush() από τον
+            // oneShotListener (τον πραγματικό, TYPE_STEP_COUNTER) μόλις ειδοποιηθεί για ένα φρέσκο βήμα --
+            // η απόφαση/ο υπολογισμός γίνεται ΠΑΝΤΑ ΜΟΝΟ μέσα στον oneShotListener από πάνω, όπως πριν.
+            detectorListener = object : android.hardware.SensorEventListener {
+                override fun onSensorChanged(event: android.hardware.SensorEvent) {
+                    if (resolved.get()) return
+                    try { sensorManager.flush(oneShotListener) } catch (e: Exception) {}
+                }
+                override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
+            }
+
             try {
                 // ΙΔΙΟ τέχνασμα batching+flush() με το checkClosedAppSteps() στο plugin -- ζητάει να μας
                 // δοθεί η ΗΔΗ υπάρχουσα τιμή πιο άμεσα, χωρίς να περιμένουμε πραγματικό νέο βήμα. ΣΗΜΕΙΩΣΗ
@@ -461,6 +492,12 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                 // με ασφάλεια.
                 sensorManager.registerListener(oneShotListener, counterSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST, Int.MAX_VALUE)
                 try { sensorManager.flush(oneShotListener) } catch (e: Exception) {}
+                // ΝΕΟ: καταχωρίζει ΚΑΙ τον "ξυπνητήρι" listener, ΜΟΝΟ αν η συσκευή τον υποστηρίζει --
+                // ΧΩΡΙΣ maxReportLatency (0), αφού εδώ ΘΕΛΟΥΜΕ την πιο άμεση δυνατή ειδοποίηση ανά βήμα,
+                // ΟΧΙ batching.
+                if (detectorSensor != null) {
+                    try { sensorManager.registerListener(detectorListener, detectorSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST) } catch (e: Exception) {}
+                }
                 val allRetryDelays = longArrayOf(500L, 1500L, 3000L, 5000L, 7000L, 10000L, 15000L, 20000L, 30000L, 40000L)
                 for (delayMs in allRetryDelays) {
                     if (delayMs >= timeoutMs) continue
