@@ -35,8 +35,13 @@ import java.util.Locale
 class FytraStepsWidgetProviderCompact : AppWidgetProvider() {
 
     companion object {
-        fun buildRemoteViewsCompact(context: Context): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_steps_compact)
+        // ΝΕΟ (ζητήθηκε ρητά, 6/11, v2): δέχεται ΠΡΟΑΙΡΕΤΙΚΟ layoutResId -- επιτρέπει στο 3x1
+        // (FytraStepsWidgetProviderMedium) να χρησιμοποιεί το ΔΙΚΟ ΤΟΥ, μεγαλύτερο
+        // widget_steps_medium.xml (ΙΔΙΑ ονόματα id, βλ. σχόλιο εκεί) χωρίς να χρειάζεται δεύτερη,
+        // διπλή συνάρτηση -- όλη η λογική τιμών/PendingIntent παραμένει ΜΙΑ φορά, εδώ. Προεπιλογή
+        // παραμένει το ΙΔΙΟ R.layout.widget_steps_compact (2x1) όπως πριν, ΑΝΕΠΗΡΕΑΣΤΟ.
+        fun buildRemoteViewsCompact(context: Context, layoutResId: Int = R.layout.widget_steps_compact): RemoteViews {
+            val views = RemoteViews(context.packageName, layoutResId)
             val prefs = context.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
             val steps = prefs.getInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, 0)
             val kcal = prefs.getInt(FytraStepsWidgetProvider.KEY_WIDGET_KCAL, 0)
@@ -51,6 +56,17 @@ class FytraStepsWidgetProviderCompact : AppWidgetProvider() {
             // ΚΑΙ για το 3x1, αφού το medium delegate-άρει σε αυτή την ίδια buildRemoteViewsCompact().
             views.setInt(R.id.widgetCompactRoot, "setBackgroundResource", theme.pressableBgRes)
             views.setTextColor(R.id.widgetCompactStepsNum, theme.accentColor)
+
+            // ΝΕΟ (ζητήθηκε ρητά, 6/11, v7): κουμπί παλέτας -- ΙΔΙΟ θέμα/χρωματισμό με το κανονικό 4x2
+            // (theme.iconWrapRes για το φόντο, theme.accentColor για το χρώμα του εικονιδίου). Ισχύει
+            // ΚΑΙ για το 3x1 (widget_steps_medium.xml), αφού μοιράζονται τα ίδια id.
+            views.setInt(R.id.widgetCompactThemeBtn, "setBackgroundResource", theme.iconWrapRes)
+            views.setInt(R.id.widgetCompactThemeBtnIcon, "setColorFilter", theme.accentColor)
+
+            // ΝΕΟ (ζητήθηκε ρητά, 6/11, v8 -- "ακριβώς όπως το 4χ2"): το brand badge πάνω-αριστερά
+            // αλλάζει χρώμα με το θέμα, ΙΔΙΑ λογική με το widgetBrandBadge στο κανονικό 4x2
+            // (FytraStepsWidgetProvider.buildRemoteViews, theme.badgeRes).
+            views.setInt(R.id.widgetCompactBrandBadge, "setBackgroundResource", theme.badgeRes)
             views.setTextViewText(R.id.widgetCompactStepsNum, FytraStepsWidgetProvider.formatThousands(steps))
             views.setTextViewText(R.id.widgetCompactKcalVal, FytraStepsWidgetProvider.formatThousands(kcal) + " kcal")
             views.setTextViewText(
@@ -58,11 +74,14 @@ class FytraStepsWidgetProviderCompact : AppWidgetProvider() {
                 String.format(Locale.US, "%.2f", km).replace(".", ",") + " km"
             )
 
-            // Μικρότερο bitmap δακτυλίου (ταιριάζει στο 34dp του layout) -- ίδια μέθοδος σχεδίασης με το
-            // κανονικό widget (FytraStepsWidgetProvider.drawProgressRingBitmap, έγινε internal ακριβώς
-            // για να το μοιράζεται και αυτή η κλάση).
+            // Μικρότερο bitmap δακτυλίου -- ίδια μέθοδος σχεδίασης με το κανονικό widget
+            // (FytraStepsWidgetProvider.drawProgressRingBitmap, έγινε internal ακριβώς για να το
+            // μοιράζεται και αυτή η κλάση). ΔΙΟΡΘΩΣΗ (6/11, v8): το μέγεθος bitmap προσαρμόζεται ανάλογα
+            // με το layout (2x1 ring=38dp, 3x1 ring=50dp) ώστε να παραμένει ευκρινές και στα δύο, αντί
+            // για ένα σταθερό μέγεθος που θα ήταν λίγο "θαμπό" στο μεγαλύτερο δακτύλιο του 3x1.
+            val ringSizePx = if (layoutResId == R.layout.widget_steps_medium) 112 else 86
             val progressFraction = if (goal > 0) steps.toFloat() / goal.toFloat() else 0f
-            val ringBitmap = FytraStepsWidgetProvider.drawProgressRingBitmap(88, 9f, progressFraction, theme)
+            val ringBitmap = FytraStepsWidgetProvider.drawProgressRingBitmap(ringSizePx, 9f, progressFraction, theme)
             views.setImageViewBitmap(R.id.widgetCompactRingImage, ringBitmap)
 
             val launchFlags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
@@ -76,6 +95,16 @@ class FytraStepsWidgetProviderCompact : AppWidgetProvider() {
             refreshIntent.action = FytraStepsWidgetProvider.ACTION_WIDGET_REFRESH
             val refreshPendingIntent = android.app.PendingIntent.getBroadcast(context, 20, refreshIntent, launchFlags)
             views.setOnClickPendingIntent(R.id.widgetCompactRoot, refreshPendingIntent)
+
+            // ΝΕΟ (ζητήθηκε ρητά, 6/11, v7): κουμπί παλέτας -- ΙΔΙΟ broadcast action ACTION_CYCLE_THEME,
+            // που ήδη χειρίζεται κεντρικά το FytraStepsWidgetProvider.onReceive() (αλλάζει το κοινό
+            // KEY_WIDGET_THEME_INDEX και καλεί requestWidgetUpdate(), που ήδη ανανεώνει ΟΛΑ τα μεγέθη,
+            // compact/medium/wide/κανονικό). Νέος, μοναδικός request code (24) -- δεν συγκρούεται με τα
+            // 20/21/22/23 που χρησιμοποιούνται ήδη εδώ πάνω.
+            val cycleIntent = Intent(context, FytraStepsWidgetProvider::class.java)
+            cycleIntent.action = FytraStepsWidgetProvider.ACTION_CYCLE_THEME
+            val cyclePendingIntent = android.app.PendingIntent.getBroadcast(context, 24, cycleIntent, launchFlags)
+            views.setOnClickPendingIntent(R.id.widgetCompactThemeBtn, cyclePendingIntent)
 
             // ΝΕΟ: κουκκίδα "i" -- ανοίγει το popup (ίδιο κοινό KEY_WIDGET_INFO_VISIBLE με το 4x2).
             val infoIntent = Intent(context, FytraStepsWidgetProvider::class.java)
