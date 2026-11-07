@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11, v5): μικρή έκδοση (2x1, και 3x1 που delegate-άρει εδώ) του widget
-     βημάτων. ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά): επιστροφή στην ΑΠΟΛΥΤΗ θέση "i" πάνω-δεξιά στη γωνία (ΟΧΙ πια
-     μέσα στη σειρά περιεχομένου, βλ. προηγούμενη εκδοχή v4), ΟΠΩΣ ήταν αρχικά. Για να μην ακουμπάει στο
-     kcal/km, έγιναν ΔΥΟ αλλαγές: (1) το "i" μίκρυνε (13dp αντί 17dp), (2) το paddingEnd του περιεχομένου
-     ανέβηκε σε 26dp (από 20dp) ώστε να μείνει πραγματικό "κενό ασφαλείας" δεξιά του kcal/km, μεγαλύτερο
-     από το πλάτος που πιάνει το μικρότερο πλέον "i" (13dp+3dp περιθώριο=16dp). Έτσι το περιεχόμενο ΔΕΝ
-     μπορεί να απλωθεί μέχρι εκεί που βρίσκεται το "i", ανεξάρτητα από το πόσο στενό είναι το widget. -->
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11, v8 — "κάνε το ακριβώς όπως το 4χ2, δες που βρίσκεται τι"): πλήρης
+     αναδιάρθρωση ώστε η δομή να είναι η ΙΔΙΑ, 1:1, με το κανονικό widget_steps.xml (4x2), απλά σε
+     μικρότερα μεγέθη — ΤΡΕΙΣ κάθετες σειρές, ακριβώς όπως εκεί:
+     1) ΠΑΝΩ σειρά: μικρό brand badge + "FYTRA" + κουμπί παλέτας (widgetCompactThemeBtn) — ίδια θέση/
+        σειρά με το widgetBrandBadge/widgetBrandName/widgetThemeBtn στο 4x2.
+     2) ΚΥΡΙΑ σειρά: δακτύλιος με τον αριθμό βημάτων ΜΕΣΑ του (overlay, όχι πια δίπλα) — ακριβώς όπως ο
+        δακτύλιος widgetRingImage/widgetRingNum στο 4x2 — και δίπλα, κάθετη στήλη με τις ΚΑΝΟΝΙΚΕΣ
+        κάρτες kcal/km (εικονίδιο + τιμή + ετικέτα "Θερμίδες"/"Απόσταση", στοιβαγμένες η μία πάνω στην
+        άλλη) — ακριβώς όπως οι κάρτες widgetKcalWrap/widgetKmWrap στο 4x2 (όχι πια "pill chips" χωρίς
+        ετικέτα).
+     3) ΚΑΤΩ σειρά: "Open App", ευθυγραμμισμένο στο τέλος (gravity="end") — ακριβώς όπως το
+        widgetOpenAppBtn στο 4x2.
+     Η κουκκίδα "i" και το popup της παραμένουν απόλυτα τοποθετημένα πάνω-δεξιά, ΑΝΕΞΑΡΤΗΤΑ από τις 3
+     σειρές — ακριβώς όπως το widgetInfoBtn/widgetInfoBubble στο 4x2. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetCompactRoot"
     android:layout_width="match_parent"
@@ -13,78 +20,201 @@
     android:background="@drawable/widget_bg_0">
 
     <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:orientation="vertical"
+        android:gravity="center_vertical"
         android:paddingStart="10dp"
-        android:paddingEnd="26dp"
-        android:paddingTop="3dp"
-        android:paddingBottom="3dp">
+        android:paddingEnd="22dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp">
 
+        <!-- ========== 1) ΠΑΝΩ σειρά: brand + παλέτα (ίδια θέση με το 4x2) ========== -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:id="@+id/widgetCompactBrandBadge"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:background="@drawable/badge_bg_0">
+                <ImageView
+                    android:layout_width="9dp"
+                    android:layout_height="9dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_paw"/>
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:text="FYTRA"
+                android:textColor="#F0E2BC"
+                android:textSize="7.5sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"/>
+
+            <FrameLayout
+                android:id="@+id/widgetCompactThemeBtn"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/icon_wrap_bg_0">
+                <ImageView
+                    android:id="@+id/widgetCompactThemeBtnIcon"
+                    android:layout_width="9dp"
+                    android:layout_height="9dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_palette"/>
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ========== 2) ΚΥΡΙΑ σειρά: δακτύλιος (αριθμός ΜΕΣΑ) + κάρτες kcal/km (ίδια θέση με το 4x2) ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <FrameLayout
-                android:layout_width="32dp"
-                android:layout_height="32dp">
-                <!-- Γεμίζει δυναμικά, ίδια μέθοδος drawProgressRingBitmap() με το κανονικό widget,
-                     μικρότερο sizePx (βλ. FytraStepsWidgetProviderCompact.buildRemoteViewsCompact). -->
+                android:layout_width="38dp"
+                android:layout_height="38dp">
+                <!-- Γεμίζει δυναμικά, ίδια μέθοδος drawProgressRingBitmap() με το κανονικό widget -->
                 <ImageView
                     android:id="@+id/widgetCompactRingImage"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"/>
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <TextView
+                        android:id="@+id/widgetCompactStepsNum"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:text="0"
+                        android:textColor="#FFE07A"
+                        android:textSize="10sp"
+                        android:textStyle="bold"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:text="βήματα"
+                        android:textColor="#B89A5A"
+                        android:textSize="5.5sp"/>
+                </LinearLayout>
             </FrameLayout>
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:orientation="vertical">
-                <TextView
-                    android:id="@+id/widgetCompactStepsNum"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0"
-                    android:textColor="#FFE07A"
-                    android:textSize="12.5sp"
-                    android:textStyle="bold"/>
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="βήματα"
-                    android:textColor="#B89A5A"
-                    android:textSize="7sp"/>
-            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:orientation="vertical">
-                <TextView
-                    android:id="@+id/widgetCompactKcalVal"
+
+                <LinearLayout
+                    android:id="@+id/widgetCompactKcalWrap"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="0 kcal"
-                    android:textColor="#FFF3DC"
-                    android:textSize="8sp"
-                    android:textStyle="bold"/>
-                <TextView
-                    android:id="@+id/widgetCompactKmVal"
+                    android:layout_marginBottom="3dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:background="@drawable/stat_bg_0">
+                    <FrameLayout
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:background="@drawable/icon_wrap_bg_0">
+                        <ImageView
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_widget_flame"/>
+                    </FrameLayout>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/widgetCompactKcalVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="0 kcal"
+                            android:textColor="#FFF3DC"
+                            android:textSize="7.5sp"
+                            android:textStyle="bold"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="Θερμίδες"
+                            android:textColor="#B89A5A"
+                            android:textSize="5.5sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/widgetCompactKmWrap"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="0,00 km"
-                    android:textColor="#FFF3DC"
-                    android:textSize="8sp"
-                    android:textStyle="bold"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:background="@drawable/stat_bg_0">
+                    <FrameLayout
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:background="@drawable/icon_wrap_bg_0">
+                        <ImageView
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_widget_pin"/>
+                    </FrameLayout>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/widgetCompactKmVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="0,00 km"
+                            android:textColor="#FFF3DC"
+                            android:textSize="7.5sp"
+                            android:textStyle="bold"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="Απόσταση"
+                            android:textColor="#B89A5A"
+                            android:textSize="5.5sp"/>
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
+        <!-- ========== 3) ΚΑΤΩ σειρά: Open App, ευθυγραμμισμένο στο τέλος (ίδια θέση με το 4x2) ========== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -105,17 +235,16 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:maxLines="1"
                     android:text="Open App"
                     android:textColor="#FFF3DC"
-                    android:textSize="7.5sp"
+                    android:textSize="6.5sp"
                     android:textStyle="bold"/>
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ΝΕΟ: κουκκίδα "i", ΠΙΣΩ στην απόλυτη θέση πάνω-δεξιά στη γωνία, όπως ζητήθηκε. Μικρότερη
-         (13dp αντί 17dp) ώστε να χωράει με ασφάλεια μέσα στο κενό που αφήνει το μεγαλύτερο paddingEnd
-         του περιεχομένου (βλ. σχόλιο στην κορυφή του αρχείου). -->
+    <!-- κουκκίδα "i", απόλυτη θέση πάνω-δεξιά — ίδια θέση με το widgetInfoBtn στο 4x2. -->
     <FrameLayout
         android:id="@+id/widgetCompactInfoBtn"
         android:layout_width="13dp"
@@ -134,7 +263,7 @@
             android:textColor="#F0E2BC"/>
     </FrameLayout>
 
-    <!-- ΝΕΟ: popup του "i", ευθυγραμμισμένο κάτω από την (μικρότερη) κουκκίδα. -->
+    <!-- popup του "i" — ίδια θέση με το widgetInfoBubble στο 4x2. -->
     <LinearLayout
         android:id="@+id/widgetCompactInfoBubble"
         android:layout_width="168dp"

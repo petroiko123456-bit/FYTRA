@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ΝΕΟ (ζητήθηκε ρητά, 6/11, v4 — "κάνε το ακριβώς όπως το 4χ2"): ΙΔΙΑ δομή με το νέο
+     widget_steps_compact.xml (βλ. εκτενές σχόλιο εκεί) — ΙΔΙΑ ονόματα id, ώστε η ΙΔΙΑ
+     FytraStepsWidgetProviderCompact.buildRemoteViewsCompact() να το γεμίζει κανονικά (δεύτερο όρισμα
+     layoutResId). Η ΜΟΝΗ διαφορά: όλα τα μεγέθη είναι μεγαλύτερα (ταιριάζει στο μεγαλύτερο πλάτος του
+     3x1): badge 18dp, "FYTRA" 9sp, παλέτα 18dp/icon 11dp, δακτύλιος 50dp, αριθμός βημάτων 13sp,
+     κάρτες kcal/km εικονίδιο 19dp/τιμή 9.5sp/ετικέτα 7sp, Open App 8sp. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widgetCompactRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_0">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="28dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <!-- ========== 1) ΠΑΝΩ σειρά: brand + παλέτα (ίδια θέση με το 4x2) ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="5dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:id="@+id/widgetCompactBrandBadge"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:background="@drawable/badge_bg_0">
+                <ImageView
+                    android:layout_width="11dp"
+                    android:layout_height="11dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_paw"/>
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:maxLines="1"
+                android:text="FYTRA"
+                android:textColor="#F0E2BC"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06"/>
+
+            <FrameLayout
+                android:id="@+id/widgetCompactThemeBtn"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/icon_wrap_bg_0">
+                <ImageView
+                    android:id="@+id/widgetCompactThemeBtnIcon"
+                    android:layout_width="11dp"
+                    android:layout_height="11dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_widget_palette"/>
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- ========== 2) ΚΥΡΙΑ σειρά: δακτύλιος (αριθμός ΜΕΣΑ) + κάρτες kcal/km (ίδια θέση με το 4x2) ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:layout_width="50dp"
+                android:layout_height="50dp">
+                <!-- Γεμίζει δυναμικά, ίδια μέθοδος drawProgressRingBitmap() με το κανονικό widget -->
+                <ImageView
+                    android:id="@+id/widgetCompactRingImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"/>
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal">
+                    <TextView
+                        android:id="@+id/widgetCompactStepsNum"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:text="0"
+                        android:textColor="#FFE07A"
+                        android:textSize="13sp"
+                        android:textStyle="bold"/>
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:maxLines="1"
+                        android:text="βήματα"
+                        android:textColor="#B89A5A"
+                        android:textSize="7sp"/>
+                </LinearLayout>
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/widgetCompactKcalWrap"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:background="@drawable/stat_bg_0">
+                    <FrameLayout
+                        android:layout_width="19dp"
+                        android:layout_height="19dp"
+                        android:background="@drawable/icon_wrap_bg_0">
+                        <ImageView
+                            android:layout_width="11dp"
+                            android:layout_height="11dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_widget_flame"/>
+                    </FrameLayout>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/widgetCompactKcalVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="0 kcal"
+                            android:textColor="#FFF3DC"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="Θερμίδες"
+                            android:textColor="#B89A5A"
+                            android:textSize="7sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/widgetCompactKmWrap"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="3dp"
+                    android:paddingBottom="3dp"
+                    android:background="@drawable/stat_bg_0">
+                    <FrameLayout
+                        android:layout_width="19dp"
+                        android:layout_height="19dp"
+                        android:background="@drawable/icon_wrap_bg_0">
+                        <ImageView
+                            android:layout_width="11dp"
+                            android:layout_height="11dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_widget_pin"/>
+                    </FrameLayout>
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/widgetCompactKmVal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="0,00 km"
+                            android:textColor="#FFF3DC"
+                            android:textSize="9.5sp"
+                            android:textStyle="bold"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:text="Απόσταση"
+                            android:textColor="#B89A5A"
+                            android:textSize="7sp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ========== 3) ΚΑΤΩ σειρά: Open App, ευθυγραμμισμένο στο τέλος (ίδια θέση με το 4x2) ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="end"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:id="@+id/widgetCompactOpenAppBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="9dp"
+                android:paddingEnd="9dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:background="@drawable/stat_bg_0">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxLines="1"
+                    android:text="Open App"
+                    android:textColor="#FFF3DC"
+                    android:textSize="8sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- κουκκίδα "i", απόλυτη θέση πάνω-δεξιά — ίδια θέση με το widgetInfoBtn στο 4x2. -->
+    <FrameLayout
+        android:id="@+id/widgetCompactInfoBtn"
+        android:layout_width="15dp"
+        android:layout_height="15dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/icon_wrap_bg_0">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="i"
+            android:textStyle="bold|italic"
+            android:textSize="8sp"
+            android:textColor="#F0E2BC"/>
+    </FrameLayout>
+
+    <!-- popup του "i" — ίδια θέση με το widgetInfoBubble στο 4x2. -->
+    <LinearLayout
+        android:id="@+id/widgetCompactInfoBubble"
+        android:layout_width="180dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="22dp"
+        android:layout_marginEnd="5dp"
+        android:orientation="vertical"
+        android:background="@drawable/popup_bg_0"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Πώς δουλεύει"
+                android:textColor="#FFF3DC"
+                android:textSize="9.5sp"
+                android:textStyle="bold"/>
+            <FrameLayout
+                android:id="@+id/widgetCompactInfoCloseBtn"
+                android:layout_width="17dp"
+                android:layout_height="17dp"
+                android:background="@drawable/icon_wrap_bg_0">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="✕"
+                    android:textColor="#F0E2BC"
+                    android:textSize="8sp"/>
+            </FrameLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="Πατώντας επάνω στο widget μπορείς να συγχρονίσεις τα βήματα που κάνεις όσο η εφαρμογή είναι κλειστή, με την προϋπόθεση όμως ότι συνεχίζεις να περπατάς. Αν η εφαρμογή όμως είναι ενεργή στο παρασκήνιο, τότε τα βήματά σου ενημερώνονται μόνα τους σε πραγματικό χρόνο."
+            android:textColor="#D8C9A0"
+            android:textSize="8.5sp"
+            android:lineSpacingExtra="1dp"/>
+
+        <TextView
+            android:id="@+id/widgetCompactOpenAppLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Άνοιγμα εφαρμογής →"
+            android:textColor="#FFE07A"
+            android:textSize="9sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
+</FrameLayout>
