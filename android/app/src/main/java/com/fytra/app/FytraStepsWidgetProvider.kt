@@ -381,9 +381,14 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         // πριν (500/1500/3000/5000/7000ms). ΚΑΜΙΑ άλλη αλλαγή λογικής -- ίδιος υπολογισμός delta/baseline,
         // ίδιος "ΠΟΤΕ δεν μειώνει" φρουρός, καμία επίδραση στο God Mode/v1/v2.
         internal fun hardwareCatchUpCore(context: Context, timeoutMs: Long = 9000L, onDone: () -> Unit) {
+            // ΝΕΟ (διαγνωστικό, 8/11): μπήκαμε καν μέσα στο hardwareCatchUpCore, με τι timeoutMs.
+            android.util.Log.d("FytraDebug", "hardwareCatchUpCore: ΞΕΚΙΝΑΕΙ, timeoutMs=" + timeoutMs)
             val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
             val counterSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER)
-            if (sensorManager == null || counterSensor == null) { onDone(); return }
+            if (sensorManager == null || counterSensor == null) {
+                android.util.Log.d("FytraDebug", "hardwareCatchUpCore: ΤΕΛΟΣ ΑΜΕΣΑ -- sensorManager=" + sensorManager + " counterSensor=" + counterSensor)
+                onDone(); return
+            }
             val appCtx = context.applicationContext ?: context
 
             // ΝΕΟ (ζητήθηκε ρητά, 7/11 — "να λειτουργούν συμπληρωματικά"): δεύτερος αισθητήρας,
@@ -405,6 +410,8 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val widgetRawPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
             val hasStoredBefore = widgetRawPrefs.contains(KEY_WIDGET_LAST_RAW_STEP_COUNTER)
             val storedValueBefore = widgetRawPrefs.getFloat(KEY_WIDGET_LAST_RAW_STEP_COUNTER, 0f)
+            // ΝΕΟ (διαγνωστικό, 8/11): τι ξέραμε ΠΡΙΝ ζητήσουμε φρέσκια τιμή, και υπάρχει ο δεύτερος αισθητήρας.
+            android.util.Log.d("FytraDebug", "hardwareCatchUpCore: hasStoredBefore=" + hasStoredBefore + " storedValueBefore=" + storedValueBefore + " detectorSensor=" + (detectorSensor != null))
 
             val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -461,7 +468,11 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                             .putFloat(KEY_WIDGET_LAST_RAW_STEP_COUNTER, rawValue)
                             .putLong(KEY_WIDGET_LAST_RAW_STEP_COUNTER_TS, System.currentTimeMillis())
                             .apply()
-                    } catch (e: Exception) { /* μη κρίσιμο */ }
+                        // ΝΕΟ (διαγνωστικό, 8/11): ήρθε φρέσκια τιμή από τον πραγματικό STEP_COUNTER.
+                        android.util.Log.d("FytraDebug", "hardwareCatchUpCore/oneShotListener: ΗΡΘΕ rawValue=" + rawValue)
+                    } catch (e: Exception) {
+                        android.util.Log.d("FytraDebug", "hardwareCatchUpCore/oneShotListener: ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+                    }
                     finishOnce()
                 }
                 override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
@@ -474,6 +485,8 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             detectorListener = object : android.hardware.SensorEventListener {
                 override fun onSensorChanged(event: android.hardware.SensorEvent) {
                     if (resolved.get()) return
+                    // ΝΕΟ (διαγνωστικό, 8/11): χτύπησε το "ξυπνητήρι" -- ζητάμε flush στον πραγματικό μετρητή.
+                    android.util.Log.d("FytraDebug", "hardwareCatchUpCore/detectorListener: ΧΤΥΠΗΣΕ, ζητάω flush")
                     try { sensorManager.flush(oneShotListener) } catch (e: Exception) {}
                 }
                 override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
@@ -505,8 +518,13 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                     retryRunnables.add(retry)
                     timeoutHandler.postDelayed(retry, delayMs)
                 }
-                timeoutHandler.postDelayed({ finishOnce() }, timeoutMs)
+                timeoutHandler.postDelayed({
+                    // ΝΕΟ (διαγνωστικό, 8/11): τελειώσαμε επειδή χτύπησε το χρονικό όριο, όχι επειδή ήρθε βήμα.
+                    android.util.Log.d("FytraDebug", "hardwareCatchUpCore: ΧΤΥΠΗΣΕ ΤΟ TIMEOUT (" + timeoutMs + "ms)")
+                    finishOnce()
+                }, timeoutMs)
             } catch (e: Exception) {
+                android.util.Log.d("FytraDebug", "hardwareCatchUpCore: ΕΣΚΑΣΕ στο setup: " + e.javaClass.simpleName + ": " + e.message)
                 finishOnce()
             }
         }
@@ -603,6 +621,10 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
         // υποχώρηση (fallback) στο παλιό, εγγυημένα ασφαλές σύντομο μονοπάτι, ώστε το tap να ΜΗΝ μείνει
         // ποτέ χωρίς καμία προσπάθεια συγχρονισμού.
         if (intent.action == ACTION_WIDGET_REFRESH) {
+            // ΝΕΟ (διαγνωστικό, 8/11 — "το tap δεν κάνει τίποτα πια"): καταγράφει ΤΙ αποφασίζεται εδώ,
+            // ώστε το επόμενο log να δείξει ξεκάθαρα αν μπήκαμε καν εδώ, τι έδειξε το isRunning, και αν η
+            // εκκίνηση του service πέτυχε ή πέταξε εξαίρεση. ΚΑΘΑΡΑ διαγνωστικό -- καμία αλλαγή λογικής.
+            android.util.Log.d("FytraDebug", "onReceive: ACTION_WIDGET_REFRESH, FytraStepForegroundService.isRunning=" + FytraStepForegroundService.isRunning)
             // ΔΙΟΡΘΩΣΗ (ζητήθηκε ρητά, 6/11, bug "πρόσθεσε 60 λάθος βήματα ενώ η εφαρμογή ΔΕΝ ήταν
             // κλειστή"): η raw ανάγνωση αισθητήρα (μέσω FytraWidgetCatchUpService/hardwareCatchUpCore)
             // είναι ΜΟΝΟ για την περίπτωση που η εφαρμογή είναι ΠΡΑΓΜΑΤΙΚΑ κλειστή -- όταν το ζωντανό
@@ -622,8 +644,13 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                 } else {
                     context.startService(svcIntent)
                 }
+                // ΝΕΟ (διαγνωστικό, 8/11): η κλήση startForegroundService/startService ΔΕΝ πέταξε εξαίρεση.
+                android.util.Log.d("FytraDebug", "onReceive: startForegroundService/startService ΟΚ (δεν έσκασε)")
             } catch (e: Exception) {
-                try { tryHardwareCatchUp(context) } catch (e2: Exception) { /* μη κρίσιμο */ }
+                android.util.Log.d("FytraDebug", "onReceive: startForegroundService/startService ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
+                try { tryHardwareCatchUp(context) } catch (e2: Exception) {
+                    android.util.Log.d("FytraDebug", "onReceive: ΚΑΙ το fallback tryHardwareCatchUp ΕΣΚΑΣΕ: " + e2.javaClass.simpleName + ": " + e2.message)
+                }
             }
             return
         }
