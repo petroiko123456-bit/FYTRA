@@ -2027,7 +2027,10 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             val kmVal = (totalToday * strideM) / 1000.0
             // ΣΗΜΕΙΩΣΗ: ΔΕΝ γράφουμε εδώ το KEY_WIDGET_GOAL -- αυτό ενημερώνεται ΜΟΝΟ από το JS
             // (updateWidgetData όταν υπάρχει ζωντανό WebView), το native side απλά το διαβάζει.
-            writeWidgetDisplayCacheGuarded(appCtx, totalToday.toInt(), kcalVal, kmVal.toFloat())
+            // ΔΙΟΡΘΩΣΗ (8/11, βλ. πλήρες σχόλιο στον ορισμό του writeWidgetDisplayCacheGuarded): αυτό ΕΔΩ
+            // είναι το native/αυθεντικό path (η πηγή-αλήθεια) -- trustFully=true, ώστε να ΜΗΝ μπλοκάρεται
+            // ΠΟΤΕ από ένα παλιό, ενδεχομένως λανθασμένα ψηλό cache.
+            writeWidgetDisplayCacheGuarded(appCtx, totalToday.toInt(), kcalVal, kmVal.toFloat(), trustFully = true)
             Log.d(TAG, "pushWidgetUpdateFromNativeCredit: ΟΚ, totalToday=$totalToday kcal=$kcalVal km=" + String.format("%.2f", kmVal))
         } catch (e: Exception) {
             Log.d(TAG, "pushWidgetUpdateFromNativeCredit ΕΣΚΑΣΕ: " + e.javaClass.simpleName + ": " + e.message)
@@ -2047,14 +2050,27 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
     // προλάβει). Σε ΝΕΑ μέρα (dayKey άλλαξε) επιτρέπεται πάντα η νέα τιμή, ΑΚΟΜΑ και μηδέν, ώστε ο καθημερινός
     // μηδενισμός να δουλεύει κανονικά. ΚΑΜΙΑ επίδραση στο God Mode/v1/v2 filter -- καθαρά φρουρός εγγραφής σε
     // ένα display-only cache.
-    private fun writeWidgetDisplayCacheGuarded(appCtx: android.content.Context, newSteps: Int, newKcal: Int, newKm: Float) {
+    private fun writeWidgetDisplayCacheGuarded(appCtx: android.content.Context, newSteps: Int, newKcal: Int, newKm: Float, trustFully: Boolean = false) {
         try {
             val prefs = appCtx.getSharedPreferences(FytraStepsWidgetProvider.WIDGET_PREFS_NAME, android.content.Context.MODE_PRIVATE)
             val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
             val storedDayKey = prefs.getString(FytraStepsWidgetProvider.KEY_WIDGET_DAYKEY, "") ?: ""
             val storedSteps = prefs.getInt(FytraStepsWidgetProvider.KEY_WIDGET_STEPS, 0)
             val isNewDay = storedDayKey != todayKey
-            if (!isNewDay && newSteps < storedSteps) {
+            // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG (ζητήθηκε ρητά, 8/11 -- "το widget έμεινε κολλημένο σε λάθος, ψηλότερο
+            // αριθμό και δεν συγχρονιζόταν πλέον με τα πραγματικά βήματα"): ο φρουρός "ΠΟΤΕ δεν μειώνει"
+            // υπήρχε για να προστατεύσει ΑΠΟ ΤΟ JS path (updateWidgetData) -- συγκεκριμένα από το πρώτο,
+            // πρόωρο renderSteps() που τρέχει ΠΡΙΝ ολοκληρωθεί το checkClosedAppSteps() -- να ΜΗΝ γράψει μια
+            // προσωρινά χαμηλότερη τιμή ΠΑΝΩ από μια ήδη σωστή. Όμως εφαρμοζόταν ΚΑΙ στο native path
+            // (pushWidgetUpdateFromNativeCredit) -- την ΙΔΙΑ την πηγή-αλήθεια, τον ζωντανό αλγόριθμο που
+            // τρέχει συνεχώς. Αν το cache "παγώσει" ΚΑΠΟΤΕ σε μια ψηλότερη τιμή (π.χ. από δοκιμαστικά
+            // κλικ "+1 βήμα", ή οποιαδήποτε στιγμιαία ασυνέπεια), ο φρουρός μπλόκαρε ΜΟΝΙΜΑ -- για ΟΛΗ την
+            // υπόλοιπη μέρα -- κάθε επόμενη, σωστή ενημέρωση από τον πραγματικό αλγόριθμο, αφού αυτή ήταν
+            // πάντα "χαμηλότερη" από το παγωμένο νούμερο. ΔΙΟΡΘΩΣΗ: όταν trustFully=true (καλείται ΜΟΝΟ από
+            // το native/αυθεντικό path, ΠΟΤΕ από το JS path), ο φρουρός ΔΕΝ εφαρμόζεται καθόλου -- η
+            // πηγή-αλήθεια γράφει πάντα ό,τι υπολογίσει, χωρίς να μπλοκάρεται από παλιό cache. ΚΑΜΙΑ αλλαγή
+            // στον ίδιο τον υπολογισμό/αλγόριθμο -- μόνο στο ΠΟΤΕ επιτρέπεται η εγγραφή στο display cache.
+            if (!trustFully && !isNewDay && newSteps < storedSteps) {
                 // Αγνοούμε την πρόωρη/χαμηλότερη τιμή -- κρατάμε ό,τι ήδη δείχνει το widget.
                 Log.d(TAG, "writeWidgetDisplayCacheGuarded: ΑΓΝΟΗΘΗΚΕ χαμηλότερη τιμή ($newSteps < $storedSteps, ίδια μέρα)")
                 return

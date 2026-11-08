@@ -469,17 +469,25 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                                     val kmVal = (totalToday * strideM) / 1000.0
                                     val storedDayKey = widgetPrefs.getString(KEY_WIDGET_DAYKEY, "") ?: ""
                                     val storedSteps = widgetPrefs.getInt(KEY_WIDGET_STEPS, 0)
-                                    // ΙΔΙΟΣ "ΠΟΤΕ δεν μειώνει" φρουρός με το writeWidgetDisplayCacheGuarded.
-                                    if (storedDayKey != todayKey || totalToday >= storedSteps) {
-                                        widgetPrefs.edit()
-                                            .putInt(KEY_WIDGET_STEPS, totalToday)
-                                            .putInt(KEY_WIDGET_KCAL, kcalVal)
-                                            .putFloat(KEY_WIDGET_KM, kmVal.toFloat())
-                                            .putString(KEY_WIDGET_DAYKEY, todayKey)
-                                            .putLong(KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
-                                            .apply()
-                                        requestWidgetUpdate(appCtx)
-                                    }
+                                    // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG (ζητήθηκε ρητά, 8/11 -- "το widget έμεινε
+                                    // κολλημένο σε λάθος, ψηλότερο αριθμό"): ΑΦΑΙΡΕΘΗΚΕ ο παλιός "ΠΟΤΕ δεν
+                                    // μειώνει" φρουρός εδώ -- βλ. πλήρες σχόλιο στον ορισμό του
+                                    // writeWidgetDisplayCacheGuarded (FytraStepCounterPlugin.kt) για την
+                                    // πλήρη αιτιολόγηση: αυτό το totalToday υπολογίζεται ΠΑΝΤΑ από την
+                                    // πραγματική baselineSteps (αυθεντική, όχι cache) + ΦΡΕΣΚΟ delta από τον
+                                    // πραγματικό αισθητήρα -- είναι ήδη η πηγή-αλήθεια, ΟΧΙ μια πρόωρη/
+                                    // ενδεχομένως λανθασμένη τιμή, άρα δεν χρειάζεται να μπλοκάρεται ποτέ από
+                                    // ένα παλιό cache. Ο έλεγχος storedDayKey/storedSteps κρατιέται ΜΟΝΟ για
+                                    // το log/διαγνωστικό, όχι πια ως φρουρός εγγραφής.
+                                    android.util.Log.d("FytraDebug", "hardwareCatchUpCore/oneShotListener: totalToday=" + totalToday + " (προηγούμενο cache=" + storedSteps + ", ίδια μέρα=" + (storedDayKey == todayKey) + ") -- γράφεται ΠΑΝΤΑ, χωρίς φρουρό μείωσης")
+                                    widgetPrefs.edit()
+                                        .putInt(KEY_WIDGET_STEPS, totalToday)
+                                        .putInt(KEY_WIDGET_KCAL, kcalVal)
+                                        .putFloat(KEY_WIDGET_KM, kmVal.toFloat())
+                                        .putString(KEY_WIDGET_DAYKEY, todayKey)
+                                        .putLong(KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+                                        .apply()
+                                    requestWidgetUpdate(appCtx)
                                 }
                             }
                         }
