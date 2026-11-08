@@ -51,8 +51,14 @@ class FytraWidgetCatchUpService : Service() {
     private var finished = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // ΝΕΟ (διαγνωστικό, 8/11 -- "το tap δεν κάνει τίποτα πια", 32 φορές onDestroy() σε 46"):
+        // καταγράφει ότι ΞΕΚΙΝΗΣΕ το onStartCommand -- αν στο log λείπει αυτή η γραμμή πριν από ένα
+        // onDestroy(), το service "πεθαίνει" ΠΡΙΝ καν μπει εδώ (π.χ. το ίδιο το Android το σκοτώνει
+        // αμέσως). ΚΑΘΑΡΑ διαγνωστικό -- καμία αλλαγή λογικής.
+        Log.d(TAG, "FytraWidgetCatchUpService: onStartCommand() ΞΕΚΙΝΗΣΕ, startId=" + startId)
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
+            Log.d(TAG, "FytraWidgetCatchUpService: startForeground ΟΚ")
         } catch (e: Exception) {
             // ΔΕΝ μπορούμε να τρέξουμε χωρίς startForeground() -- σταματάμε καθαρά. Το onReceive() στο
             // FytraStepsWidgetProvider κάνει ΗΔΗ fallback στο παλιό σύντομο μονοπάτι αν ΑΥΤΟ το
@@ -78,8 +84,12 @@ class FytraWidgetCatchUpService : Service() {
     }
 
     private fun finishAndStop() {
-        if (finished) return
+        if (finished) {
+            Log.d(TAG, "FytraWidgetCatchUpService: finishAndStop() ξανακλήθηκε, ΑΓΝΟΕΙΤΑΙ (ήδη finished)")
+            return
+        }
         finished = true
+        Log.d(TAG, "FytraWidgetCatchUpService: finishAndStop() -- σταματάει το service")
         try { stopForeground(Service.STOP_FOREGROUND_REMOVE) } catch (e: Exception) {}
         try { stopSelf() } catch (e: Exception) {}
     }
