@@ -410,8 +410,22 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
             val widgetRawPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
             val hasStoredBefore = widgetRawPrefs.contains(KEY_WIDGET_LAST_RAW_STEP_COUNTER)
             val storedValueBefore = widgetRawPrefs.getFloat(KEY_WIDGET_LAST_RAW_STEP_COUNTER, 0f)
+            // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG (ζητήθηκε ρητά, 8/11 -- "κάνω παραπάνω βήματα κ μετράει λιγότερα
+            // όσο η εφαρμογή είναι κλειστή και πατάω tap refresh"): το ΠΑΛΙΟ delta μετριόταν από το ΔΙΚΟ
+            // ΤΟΥ (του widget) σημείο αναφοράς (storedValueBefore από πάνω) -- αυτό προχωράει σε ΚΑΘΕ tap,
+            // άρα μετράει μόνο "πόσα βήματα έγιναν ΑΠΟ ΤΟ ΠΡΟΗΓΟΥΜΕΝΟ tap". Η baselineSteps όμως
+            // (closedAppPrefs.KEY_DAILY_BASELINE_STEPS, παρακάτω) ΔΕΝ αλλάζει καθόλου όσο η εφαρμογή
+            // παραμένει κλειστή -- οπότε στο 2ο, 3ο, ... tap μετά το πρώτο, το άθροισμα
+            // "baselineSteps + (λίγα βήματα από το προηγούμενο tap)" είναι ΛΑΝΘΑΣΜΕΝΟ: αγνοεί τα βήματα
+            // που είχαν ήδη περπατηθεί ΠΡΙΝ το προηγούμενο tap, τα οποία ΠΟΤΕ δεν μπήκαν στην baselineSteps
+            // (αφού αυτή ενημερώνεται ΜΟΝΟ όταν ανοίγει η εφαρμογή). ΔΙΟΡΘΩΣΗ: το delta πρέπει να μετριέται
+            // ΠΑΝΤΑ από το σημείο αναφοράς ΤΗΣ ΕΦΑΡΜΟΓΗΣ (closedAppPrefs.KEY_LAST_RAW_STEP_COUNTER -- το
+            // ΙΔΙΟ σημείο με το οποίο αντιστοιχεί η τρέχουσα baselineSteps, και που ΔΕΝ προχωράει στα tap,
+            // μόνο όταν ανοίξει πραγματικά η εφαρμογή), ΟΧΙ από το δικό του widgetRawPrefs σημείο.
+            val hasBaselineRaw = closedAppPrefs.contains(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER)
+            val baselineRawValue = closedAppPrefs.getFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, 0f)
             // ΝΕΟ (διαγνωστικό, 8/11): τι ξέραμε ΠΡΙΝ ζητήσουμε φρέσκια τιμή, και υπάρχει ο δεύτερος αισθητήρας.
-            android.util.Log.d("FytraDebug", "hardwareCatchUpCore: hasStoredBefore=" + hasStoredBefore + " storedValueBefore=" + storedValueBefore + " detectorSensor=" + (detectorSensor != null))
+            android.util.Log.d("FytraDebug", "hardwareCatchUpCore: hasStoredBefore=" + hasStoredBefore + " storedValueBefore=" + storedValueBefore + " hasBaselineRaw=" + hasBaselineRaw + " baselineRawValue=" + baselineRawValue + " detectorSensor=" + (detectorSensor != null))
 
             val resolved = java.util.concurrent.atomic.AtomicBoolean(false)
             val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -436,8 +450,13 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                     if (resolved.get()) return
                     try {
                         val rawValue = if (event.values.isNotEmpty()) event.values[0] else 0f
-                        if (hasStoredBefore && rawValue >= storedValueBefore) {
-                            val delta = (rawValue - storedValueBefore).toInt()
+                        // ΔΙΟΡΘΩΣΗ (8/11, βλ. πλήρες σχόλιο στον ορισμό του baselineRawValue παραπάνω):
+                        // το delta μετριέται ΠΛΕΟΝ από το σημείο αναφοράς ΤΗΣ ΕΦΑΡΜΟΓΗΣ (baselineRawValue),
+                        // ΟΧΙ από το δικό του widget σημείο (storedValueBefore) -- έτσι κάθε tap δείχνει
+                        // ΣΩΣΤΑ όλα τα βήματα από τότε που άνοιξε τελευταία φορά η εφαρμογή, όχι μόνο όσα
+                        // έγιναν από το αμέσως προηγούμενο tap.
+                        if (hasBaselineRaw && rawValue >= baselineRawValue) {
+                            val delta = (rawValue - baselineRawValue).toInt()
                             if (delta > 0) {
                                 val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
                                 val baselineDayKey = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
