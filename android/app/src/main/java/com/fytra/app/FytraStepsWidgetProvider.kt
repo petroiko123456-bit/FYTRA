@@ -455,11 +455,47 @@ class FytraStepsWidgetProvider : AppWidgetProvider() {
                         // ΟΧΙ από το δικό του widget σημείο (storedValueBefore) -- έτσι κάθε tap δείχνει
                         // ΣΩΣΤΑ όλα τα βήματα από τότε που άνοιξε τελευταία φορά η εφαρμογή, όχι μόνο όσα
                         // έγιναν από το αμέσως προηγούμενο tap.
-                        if (hasBaselineRaw && rawValue >= baselineRawValue) {
+                        val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                        val baselineDayKey = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
+                        // ΔΙΟΡΘΩΣΗ ΠΡΑΓΜΑΤΙΚΟΥ BUG (ζητήθηκε ρητά, 9/11 -- "μετά τις 00:00 ο αισθητήρας κάνει
+                        // reset αλλά το widget συνεχίζει να μετράει ακόμα τη χθεσινή μέρα"): ΠΡΙΝ από αυτή τη
+                        // διόρθωση, ο έλεγχος "baselineDayKey == todayKey" ήταν η ΜΟΝΑΔΙΚΗ πύλη για να γραφτεί
+                        // ΟΤΙΔΗΠΟΤΕ στο widget -- αν το baselineDayKey (γραμμένο ΜΟΝΟ από την ίδια την
+                        // εφαρμογή/JS, π.χ. saveDailyBaselineNative) ήταν ακόμα χθεσινό (επειδή η εφαρμογή δεν
+                        // είχε ανοίξει καθόλου σήμερα ΚΑΙ το ξεχωριστό μεσονυχτιο alarm -- FytraMidnightSnapshotReceiver
+                        // -- απέτυχε επειδή ο αισθητήρας έκανε timeout, όπως επιβεβαιώθηκε σε πραγματικό log),
+                        // τότε ο κλάδος "if (baselineDayKey == todayKey)" ΔΕΝ εκτελούνταν ΠΟΤΕ -- το widget
+                        // ΔΕΝ έγραφε τίποτα (ούτε καν το KEY_WIDGET_DAYKEY), άρα έμενε κολλημένο δείχνοντας την
+                        // ΤΕΛΕΥΤΑΙΑ τιμή της χθεσινής μέρας επ' αόριστον, μέχρι να ανοίξει η ίδια η εφαρμογή.
+                        // ΔΙΟΡΘΩΣΗ: το ίδιο το widget γίνεται ΠΛΕΟΝ αυτόνομο -- ανιχνεύει ΜΟΝΟ του ότι η
+                        // αποθηκευμένη "βάση ημέρας" είναι από ΠΡΟΗΓΟΥΜΕΝΗ ημερολογιακή μέρα, ΑΝΕΞΑΡΤΗΤΑ από το
+                        // αν πέτυχε ή απέτυχε το μεσονυχτιο alarm, και ξεκινάει μια ΚΑΘΑΡΗ νέα μέρα ΤΩΡΑ: μηδενίζει
+                        // την εμφανιζόμενη τιμή του widget ΚΑΙ ορίζει νέα βάση (σημερινή dayKey, 0 βήματα, raw
+                        // checkpoint = η τρέχουσα τιμή του αισθητήρα που μόλις ήρθε) ώστε η μέτρηση να συνεχίσει
+                        // αξιόπιστα ΑΠΟ ΕΔΩ ΚΑΙ ΠΕΡΑ. ΔΕΝ μπορούμε να «μαντέψουμε» πόσα βήματα έγιναν σήμερα ΠΡΙΝ
+                        // από αυτή τη στιγμή χωρίς αξιόπιστο μεσονυχτιο στιγμιότυπο -- αυτά αναπληρώνονται σωστά
+                        // μόλις ανοίξει η ίδια η εφαρμογή (checkClosedAppSteps/todayHandledPrecisely, ήδη σωστό
+                        // όπως επιβεβαιώθηκε στο log). Είναι ΠΟΛΥ προτιμότερο να δείχνει 0/αρχή μιας νέας μέρας
+                        // παρά να μένει κολλημένο δείχνοντας τη ΧΘΕΣΙΝΗ τιμή σαν να είναι σημερινή.
+                        if (baselineDayKey.isNotEmpty() && baselineDayKey != todayKey) {
+                            android.util.Log.d("FytraDebug", "hardwareCatchUpCore/oneShotListener: ΝΕΑ ΜΕΡΑ εντοπίστηκε αυτόνομα (baselineDayKey=" + baselineDayKey + " != todayKey=" + todayKey + ") -> reset widget σε 0, νέα βάση raw=" + rawValue)
+                            closedAppPrefs.edit()
+                                .putString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, todayKey)
+                                .putInt(FytraStepCounterPlugin.KEY_DAILY_BASELINE_STEPS, 0)
+                                .putFloat(FytraStepCounterPlugin.KEY_LAST_RAW_STEP_COUNTER, rawValue)
+                                .apply()
+                            val widgetPrefs = appCtx.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+                            widgetPrefs.edit()
+                                .putInt(KEY_WIDGET_STEPS, 0)
+                                .putInt(KEY_WIDGET_KCAL, 0)
+                                .putFloat(KEY_WIDGET_KM, 0f)
+                                .putString(KEY_WIDGET_DAYKEY, todayKey)
+                                .putLong(KEY_WIDGET_UPDATED_TS, System.currentTimeMillis())
+                                .apply()
+                            requestWidgetUpdate(appCtx)
+                        } else if (hasBaselineRaw && rawValue >= baselineRawValue) {
                             val delta = (rawValue - baselineRawValue).toInt()
                             if (delta > 0) {
-                                val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
-                                val baselineDayKey = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
                                 val baselineSteps = closedAppPrefs.getInt(FytraStepCounterPlugin.KEY_DAILY_BASELINE_STEPS, 0)
                                 if (baselineDayKey == todayKey) {
                                     val totalToday = baselineSteps + delta

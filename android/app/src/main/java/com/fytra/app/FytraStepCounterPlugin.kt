@@ -229,6 +229,81 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
         }
 
         // ============================================================================
+        // ΝΕΟ (ζητήθηκε ρητά, 10/11 — "αυτόματο reset του widget στις 00:00, με επαναλαμβανόμενες
+        // προσπάθειες ώστε να μην περιμένουμε έως 30 λεπτά το κανονικό refresh"): ξεχωριστή,
+        // ΑΝΕΞΑΡΤΗΤΗ αλυσίδα alarms από το ήδη υπάρχον μεσονυχτιο στιγμιότυπο ιστορικού
+        // (ACTION_MIDNIGHT_SNAPSHOT παραπάνω) -- ΕΚΕΙΝΟ αφορά ΜΟΝΟ το ημερήσιο ιστορικό της
+        // εφαρμογής (DAILY_SNAPSHOT_*) και ΔΕΝ αγγίζει καθόλου το widget, όπως εξηγήθηκε ρητά.
+        // Αυτή η αλυσίδα καλεί ΑΠΕΥΘΕΙΑΣ το ΗΔΗ υπάρχον, αυτο-διορθωτικό
+        // FytraStepsWidgetProvider.hardwareCatchUpCore() (ΑΚΡΙΒΩΣ η ίδια λογική που ήδη διορθώνει
+        // την "παγωμένη χθεσινή τιμή" σε κάθε κανονικό 30λεπτο refresh/tap) -- ΚΑΜΙΑ νέα λογική
+        // μέτρησης/reset εδώ, μόνο ΠΕΡΙΣΣΟΤΕΡΕΣ, πιο πρώιμες ευκαιρίες να εκτελεστεί ΑΥΤΗ η ήδη
+        // υπάρχουσα, ελεγμένη λογική γύρω στα μεσάνυχτα, αντί να περιμένουμε το κανονικό 30λεπτο.
+        // Μέχρι 10 απόπειρες, κάθε 2 λεπτά (κάλυψη έως ~20 λεπτά μετά τα μεσάνυχτα) -- μετά
+        // σταματάει, αφού το κανονικό 30λεπτο refresh λειτουργεί ήδη ως δίχτυ ασφαλείας (βλ.
+        // hardwareCatchUpCore στο FytraStepsWidgetProvider.kt).
+        // ============================================================================
+        const val ACTION_MIDNIGHT_WIDGET_ROLLOVER = "com.fytra.app.ACTION_MIDNIGHT_WIDGET_ROLLOVER"
+        const val ACTION_MIDNIGHT_WIDGET_RETRY = "com.fytra.app.ACTION_MIDNIGHT_WIDGET_RETRY"
+        const val MIDNIGHT_WIDGET_ROLLOVER_REQUEST_CODE = 78344
+        const val MIDNIGHT_WIDGET_RETRY_REQUEST_CODE = 78345
+        const val EXTRA_MIDNIGHT_WIDGET_RETRY_ATTEMPT = "midnightWidgetRetryAttempt"
+        const val MIDNIGHT_WIDGET_RETRY_MAX_ATTEMPTS = 10
+        const val MIDNIGHT_WIDGET_RETRY_INTERVAL_MINUTES = 2
+
+        // Προγραμματίζει την ΠΡΩΤΗ απόπειρα (attempt=0) για το επόμενο μεσάνυχτο (00:01:30 -- 30"
+        // μετά το ήδη υπάρχον ACTION_MIDNIGHT_SNAPSHOT, απλά για να μην πυροδοτούνται τα δύο
+        // ξεχωριστά alarms ΤΑΥΤΟΧΡΟΝΑ· καμία άλλη σημασία). Idempotent, ίδιο μοτίβο με
+        // scheduleMidnightSnapshotAlarm -- ασφαλές να καλείται επανειλημμένα.
+        @JvmStatic
+        fun scheduleMidnightWidgetRolloverAlarm(context: android.content.Context) {
+            try {
+                val cal = java.util.Calendar.getInstance()
+                cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 1)
+                cal.set(java.util.Calendar.SECOND, 30)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                val intent = Intent(context, FytraMidnightSnapshotReceiver::class.java)
+                intent.action = ACTION_MIDNIGHT_WIDGET_ROLLOVER
+                val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                else
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                val pendingIntent = android.app.PendingIntent.getBroadcast(context, MIDNIGHT_WIDGET_ROLLOVER_REQUEST_CODE, intent, flags)
+                val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+                alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, cal.timeInMillis, pendingIntent)
+                Log.d(TAG, "scheduleMidnightWidgetRolloverAlarm: προγραμματίστηκε για " + cal.time)
+            } catch (e: Exception) {
+                Log.d(TAG, "scheduleMidnightWidgetRolloverAlarm ΕΣΚΑΣΕ: " + e.message)
+            }
+        }
+
+        // Προγραμματίζει την ΕΠΟΜΕΝΗ απόπειρα (attempt = 1..MIDNIGHT_WIDGET_RETRY_MAX_ATTEMPTS),
+        // MIDNIGHT_WIDGET_RETRY_INTERVAL_MINUTES λεπτά από ΤΩΡΑ (όχι από τα μεσάνυχτα).
+        @JvmStatic
+        fun scheduleMidnightWidgetRetryAlarm(context: android.content.Context, attempt: Int) {
+            try {
+                val cal = java.util.Calendar.getInstance()
+                cal.add(java.util.Calendar.MINUTE, MIDNIGHT_WIDGET_RETRY_INTERVAL_MINUTES)
+                val intent = Intent(context, FytraMidnightSnapshotReceiver::class.java)
+                intent.action = ACTION_MIDNIGHT_WIDGET_RETRY
+                intent.putExtra(EXTRA_MIDNIGHT_WIDGET_RETRY_ATTEMPT, attempt)
+                val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                else
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT
+                val pendingIntent = android.app.PendingIntent.getBroadcast(context, MIDNIGHT_WIDGET_RETRY_REQUEST_CODE, intent, flags)
+                val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+                alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, cal.timeInMillis, pendingIntent)
+                Log.d(TAG, "scheduleMidnightWidgetRetryAlarm: απόπειρα #$attempt προγραμματίστηκε για " + cal.time)
+                appendSnapshotDiag(context, "WIDGET_ROLLOVER απόπειρα #$attempt προγραμματίστηκε για " + cal.time)
+            } catch (e: Exception) {
+                Log.d(TAG, "scheduleMidnightWidgetRetryAlarm ΕΣΚΑΣΕ: " + e.message)
+            }
+        }
+
+        // ============================================================================
         // ΚΕΝΤΡΙΚΗ ΡΥΘΜΙΣΗ v2 (FYTRA STEP ENGINE v2 — SHADOW MODE)
         // Όλες οι σταθερές του v2 εδώ, με σχόλιο μονάδας/σκοπού — καμία "μαγική τιμή" σκόρπια στον κώδικα.
         // ΚΑΜΙΑ από αυτές δεν επηρεάζει το πραγματικό (v1/legacy) μέτρημα — μόνο το παράλληλο v2 shadow.
@@ -630,6 +705,7 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
         try {
             scheduleMidnightSnapshotAlarm(context)
             scheduleHourlySampleAlarm(context)
+            scheduleMidnightWidgetRolloverAlarm(context)
         } catch (e: Exception) {
             Log.d(TAG, "load(): scheduleMidnightSnapshotAlarm ΕΣΚΑΣΕ: " + e.message)
         }

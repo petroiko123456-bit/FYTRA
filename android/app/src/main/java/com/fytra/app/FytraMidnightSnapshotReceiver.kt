@@ -69,14 +69,23 @@ class FytraMidnightSnapshotReceiver : BroadcastReceiver() {
             val wl = pm?.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "FytraDebug:$tag")
             wl?.setReferenceCounted(false)
             wl?.acquire(10000L)
+            // ΝΕΟ (διαγνωστικό): καταγράφουμε ρητά αν το WakeLock αποκτήθηκε πράγματι, ώστε να
+            // επιβεβαιώνεται στα logs — όχι μόνο να υποθέτουμε ότι δούλεψε.
+            Log.d(TAG, "acquireShortWakeLock($tag): isHeld=" + (wl?.isHeld ?: false))
             wl
         } catch (e: Exception) {
+            Log.d(TAG, "acquireShortWakeLock($tag) ΕΣΚΑΣΕ: " + e.message)
             null
         }
     }
 
     private fun releaseWakeLockSafely(wl: android.os.PowerManager.WakeLock?) {
-        try { if (wl != null && wl.isHeld) wl.release() } catch (e: Exception) {}
+        try {
+            if (wl != null && wl.isHeld) {
+                wl.release()
+                Log.d(TAG, "releaseWakeLockSafely: αφέθηκε κανονικά")
+            }
+        } catch (e: Exception) {}
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
@@ -87,6 +96,7 @@ class FytraMidnightSnapshotReceiver : BroadcastReceiver() {
                 // Τα alarms του AlarmManager ΔΕΝ επιζούν επανεκκίνηση συσκευής -> ξαναπρογραμματίζουμε.
                 FytraStepCounterPlugin.scheduleMidnightSnapshotAlarm(context)
                 FytraStepCounterPlugin.scheduleHourlySampleAlarm(context)
+                FytraStepCounterPlugin.scheduleMidnightWidgetRolloverAlarm(context)
                 return
             }
             if (action == FytraStepCounterPlugin.ACTION_HOURLY_SAMPLE) {
@@ -102,6 +112,21 @@ class FytraMidnightSnapshotReceiver : BroadcastReceiver() {
                     FytraStepCounterPlugin.appendSnapshotDiag(context, msg)
                 } catch (e: Exception) {}
                 takeSnapshotAndReschedule(context)
+                return
+            }
+            if (action == FytraStepCounterPlugin.ACTION_MIDNIGHT_WIDGET_ROLLOVER) {
+                // ΝΕΟ: πρώτη απόπειρα (attempt=0) της ξεχωριστής αλυσίδας widget-reset. Ξαναπρογραμματίζει
+                // ΠΡΩΤΑ το επόμενο μεσάνυχτο (idempotent, ίδιο μοτίβο με takeSnapshotAndReschedule), ώστε
+                // μια τυχόν αποτυχία ΑΠΟΨΕ να ΜΗΝ "σταματήσει" οριστικά τον μηχανισμό τις επόμενες μέρες.
+                FytraStepCounterPlugin.scheduleMidnightWidgetRolloverAlarm(context)
+                Log.d(TAG, "MIDNIGHT_DIAG: WIDGET_ROLLOVER απόπειρα #0 ξεκινάει")
+                attemptMidnightWidgetRollover(context, 0)
+                return
+            }
+            if (action == FytraStepCounterPlugin.ACTION_MIDNIGHT_WIDGET_RETRY) {
+                val attempt = intent?.getIntExtra(FytraStepCounterPlugin.EXTRA_MIDNIGHT_WIDGET_RETRY_ATTEMPT, 1) ?: 1
+                Log.d(TAG, "MIDNIGHT_DIAG: WIDGET_ROLLOVER απόπειρα #$attempt ξεκινάει")
+                attemptMidnightWidgetRollover(context, attempt)
                 return
             }
         } catch (e: Exception) {
@@ -174,6 +199,49 @@ class FytraMidnightSnapshotReceiver : BroadcastReceiver() {
         } catch (e: Exception) {
             releaseWakeLockSafely(wakeLock)
             try { pendingResult.finish() } catch (e2: Exception) {}
+        }
+    }
+
+    // ΝΕΟ (ζητήθηκε ρητά, 10/11): καλεί ΑΠΕΥΘΕΙΑΣ το ΗΔΗ υπάρχον, αυτο-διορθωτικό
+    // FytraStepsWidgetProvider.hardwareCatchUpCore() -- ΚΑΜΙΑ νέα λογική reset/μέτρησης εδώ, μόνο
+    // μια πιο πρώιμη/επαναλαμβανόμενη ευκαιρία να εκτελεστεί γύρω στα μεσάνυχτα, αντί να περιμένουμε
+    // το κανονικό 30λεπτο refresh. Ελέγχει ΠΡΙΝ αν χρειάζεται καν (μπορεί η μέρα να έχει ήδη
+    // διορθωθεί από αλλού -- π.χ. tap του χρήστη ή κανονικό refresh που πρόλαβε) και ΜΕΤΑ αν πέτυχε,
+    // πριν αποφασίσει αν θα προγραμματίσει την επόμενη απόπειρα (έως 10 συνολικά, κάθε 2 λεπτά).
+    private fun attemptMidnightWidgetRollover(context: Context, attempt: Int) {
+        try {
+            val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().time)
+            val closedAppPrefs = context.getSharedPreferences(FytraStepCounterPlugin.CLOSED_APP_PREFS_NAME, Context.MODE_PRIVATE)
+            val baselineDayKeyBefore = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
+            if (baselineDayKeyBefore == todayKey) {
+                Log.d(TAG, "attemptMidnightWidgetRollover(#$attempt): ήδη σημερινή μέρα ($todayKey) -> καμία ενέργεια, διορθώθηκε ήδη από αλλού")
+                FytraStepCounterPlugin.appendSnapshotDiag(context, "WIDGET_ROLLOVER #$attempt: ήδη OK, καμία ενέργεια")
+                return
+            }
+            val pendingResult = goAsync()
+            val wakeLock = acquireShortWakeLock(context, "MidnightWidgetRollover")
+            FytraStepsWidgetProvider.hardwareCatchUpCore(context, 8000L) {
+                try {
+                    val baselineDayKeyAfter = closedAppPrefs.getString(FytraStepCounterPlugin.KEY_DAILY_BASELINE_DAYKEY, "") ?: ""
+                    if (baselineDayKeyAfter == todayKey) {
+                        Log.d(TAG, "attemptMidnightWidgetRollover(#$attempt): ΠΕΤΥΧΕ -> widget μηδενίστηκε για $todayKey")
+                        FytraStepCounterPlugin.appendSnapshotDiag(context, "WIDGET_ROLLOVER #$attempt: ΠΕΤΥΧΕ, widget μηδενίστηκε")
+                    } else if (attempt < FytraStepCounterPlugin.MIDNIGHT_WIDGET_RETRY_MAX_ATTEMPTS) {
+                        Log.d(TAG, "attemptMidnightWidgetRollover(#$attempt): ΑΠΕΤΥΧΕ (sensor timeout) -> προγραμματίζεται απόπειρα #" + (attempt + 1))
+                        FytraStepCounterPlugin.scheduleMidnightWidgetRetryAlarm(context, attempt + 1)
+                    } else {
+                        Log.d(TAG, "attemptMidnightWidgetRollover(#$attempt): εξαντλήθηκαν οι απόπειρες -> αναμονή κανονικού 30λεπτου refresh widget")
+                        FytraStepCounterPlugin.appendSnapshotDiag(context, "WIDGET_ROLLOVER: εξαντλήθηκαν $attempt απόπειρες, αναμονή κανονικού refresh")
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "attemptMidnightWidgetRollover onDone ΕΣΚΑΣΕ: " + e.message)
+                } finally {
+                    releaseWakeLockSafely(wakeLock)
+                    try { pendingResult.finish() } catch (e2: Exception) {}
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "attemptMidnightWidgetRollover ΕΣΚΑΣΕ: " + e.message)
         }
     }
 
