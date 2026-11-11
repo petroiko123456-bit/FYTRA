@@ -274,6 +274,10 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                 val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
                 alarmManager.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, cal.timeInMillis, pendingIntent)
                 Log.d(TAG, "scheduleMidnightWidgetRolloverAlarm: προγραμματίστηκε για " + cal.time)
+                // ΝΕΟ (ζητήθηκε ρητά, 11/11): persistent καταγραφή (επιβιώνει logcat rollover/κλείσιμο),
+                // ίδιο μοτίβο με τα υπόλοιπα WIDGET_ROLLOVER diag -- ώστε να φαίνεται ΠΑΝΤΑ, στο επόμενο
+                // άνοιγμα της εφαρμογής, για ΠΟΙΑ νύχτα όντως οπλίστηκε αυτό το alarm.
+                appendSnapshotDiag(context, "WIDGET_ROLLOVER οπλίστηκε (πρώτη απόπειρα) για " + cal.time)
             } catch (e: Exception) {
                 Log.d(TAG, "scheduleMidnightWidgetRolloverAlarm ΕΣΚΑΣΕ: " + e.message)
             }
