@@ -59,6 +59,14 @@
             android:name="com.fytra.app.FytraWidgetCatchUpService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+        <!-- ΝΕΟ (ζητήθηκε ρητά, 12/11): ξεχωριστό, απομονωμένο Service ΜΟΝΟ για τη νυχτερινή
+             αυτόματη απόπειρα widget rollover (βλ. FytraMidnightWidgetCatchUpService.kt) — ΙΔΙΑ
+             συνταγή με το FytraWidgetCatchUpService από πάνω, ΧΩΡΙΣ να το τροποποιεί καθόλου. Ίδιο
+             foregroundServiceType="dataSync", ίδιες ήδη δηλωμένες άδειες. -->
+        <service
+            android:name="com.fytra.app.FytraMidnightWidgetCatchUpService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
         <!-- ΝΕΟ (Σενάριο Γ): δεχεται το μεσονυκτιο AlarmManager alarm ΚΑΙ το BOOT_COMPLETED, ακομα
              κι αν η εφαρμογη ειναι ΕΝΤΕΛΩΣ κλειστη. Βλ. FytraMidnightSnapshotReceiver.kt. -->
         <receiver
