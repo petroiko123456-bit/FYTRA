@@ -13,6 +13,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSObject
+import com.getcapacitor.JSArray
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
@@ -731,6 +732,16 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                 }
             }
             // ΝΕΟ: συμπλήρωση ΜΟΝΟ των ημερών που λείπουν, από τα ωριαία δείγματα (ποτέ δεν αντικαθιστά υπάρχον).
+            // ΔΙΟΡΘΩΣΗ ΚΡΙΣΙΜΟΥ BUG (17/11, εντοπίστηκε από ανάλυση logs — "5000+ βήματα πιστώθηκαν σε ΛΑΘΟΣ
+            // μέρα ενώ ο χρήστης δεν είχε ανοίξει την εφαρμογή 2-3 μέρες"): αυτές οι συμπληρωμένες τιμές είναι
+            // ΕΚΤΙΜΗΣΕΙΣ (γραμμική παρεμβολή ανάμεσα σε σποραδικά ωριαία δείγματα), ΟΧΙ πραγματικά μεσονύκτια
+            // στιγμιότυπα. Μέχρι τώρα μπαίνανε στο ΙΔΙΟ αντικείμενο "snapshots" με τα πραγματικά, χωρίς καμία
+            // ένδειξη διαφοράς — κι έτσι ο κώδικας στο index.html (todayHandledPrecisely) τις εμπιστευόταν σαν
+            // να ήταν ακριβείς, μεταφέροντας ολόκληρο το σφάλμα της εκτίμησης στη "σήμερα". Τώρα καταγράφουμε
+            // ΞΕΧΩΡΙΣΤΑ ποια κλειδιά-ημερομηνίες είναι εκτιμημένα (estimatedDates), ώστε η JS πλευρά να μπορεί
+            // να αρνηθεί να τα χρησιμοποιήσει ως "ακριβές όριο" και να παραπέμψει σωστά στον σταθμισμένο
+            // διαμοιρασμό (hardware_delta_weighted_split) αντί να τα εμπιστευτεί τυφλά.
+            val estimatedDates = JSArray()
             try {
                 val samples = readHourlySamples(context)
                 if (samples.size >= 2) {
@@ -746,8 +757,9 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
                         if (snapshots.has(dayKey)) continue
                         val v = counterValueAt(samples, midMs) ?: continue
                         snapshots.put(dayKey, v.toDouble()); added++
+                        estimatedDates.put(dayKey) // ΝΕΟ: σημαδεύουμε ρητά ότι ΑΥΤΟ είναι εκτίμηση, όχι πραγματικό στιγμιότυπο
                     }
-                    if (added > 0) Log.d(TAG, "getDailyStepSnapshots: συμπληρώθηκαν $added μέρες από ωριαία δείγματα")
+                    if (added > 0) Log.d(TAG, "getDailyStepSnapshots: συμπληρώθηκαν $added μέρες από ωριαία δείγματα (ΕΚΤΙΜΗΣΗ, όχι ακριβές στιγμιότυπο)")
                 }
             } catch (e: Exception) { Log.d(TAG, "getDailyStepSnapshots: ωριαία συμπλήρωση απέτυχε (μη κρίσιμο): " + e.message) }
             try {
@@ -763,6 +775,7 @@ class FytraStepCounterPlugin : Plugin(), SensorEventListener {
             } catch (e: Exception) {}
             val ret = JSObject()
             ret.put("snapshots", snapshots)
+            ret.put("estimatedDates", estimatedDates) // ΝΕΟ: λίστα ημερομηνιών-κλειδιών στο "snapshots" που είναι ΕΚΤΙΜΗΣΗ (παρεμβολή), όχι πραγματικό μεσονύκτιο στιγμιότυπο
             call.resolve(ret)
         } catch (e: Exception) {
             call.reject("getDailyStepSnapshots crashed: " + e.javaClass.simpleName + ": " + e.message)
